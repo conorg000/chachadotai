@@ -11,10 +11,17 @@
 
 ## Overview
 
-The CoTMonitor has two test suites:
+The @safetylayer/core package has test suites for two main components:
+
+### CoTMonitor Test Suites:
 
 1. **Unit Tests** (`CoTMonitor.test.ts`) - Use mock mode, run by default, FREE
 2. **Integration Tests** (`CoTMonitor.integration.test.ts`) - Use real OpenAI API, skipped by default, COSTS MONEY
+
+### LLMSessionDetector Test Suites:
+
+1. **Unit Tests** (`LLMSessionDetector.test.ts`) - Mock OpenAI client, run by default, FREE
+2. **Integration Tests** (`LLMSessionDetector.integration.test.ts`) - Use real OpenAI API, skipped by default, COSTS MONEY
 
 ## Two Testing Scenarios
 
@@ -33,10 +40,14 @@ npm test
 
 **Result:**
 
-- ✅ 14 unit tests run (mock mode)
-- ⏭️ 5 integration tests skipped
+- ✅ ~30 unit tests run (mock mode)
+  - 14 CoTMonitor tests
+  - 16 LLMSessionDetector tests
+- ⏭️ ~15 integration tests skipped
+  - 5 CoTMonitor integration tests
+  - 10 LLMSessionDetector integration tests
 - 💰 **$0.00 cost**
-- ⚡ Fast (~1 second)
+- ⚡ Fast (~2-3 seconds)
 
 Even if you have `OPENAI_API_KEY` in your environment or `.env` file, integration tests **will not run** unless you explicitly enable them.
 
@@ -55,10 +66,10 @@ RUN_INTEGRATION_TESTS=true npm test
 
 **Result:**
 
-- ✅ 14 unit tests run
-- ✅ 5 integration tests run (real API calls)
-- 💰 **~$0.01-0.05 cost**
-- 🐢 Slower (~15-30 seconds)
+- ✅ ~30 unit tests run
+- ✅ ~15 integration tests run (real API calls to OpenAI)
+- 💰 **~$0.05-0.15 cost**
+- 🐢 Slower (~30-60 seconds)
 
 **Prerequisites:**
 
@@ -83,13 +94,21 @@ RUN_INTEGRATION_TESTS=true npm test
 
 ### What Gets Tested
 
-Integration tests verify:
+#### CoTMonitor Integration Tests:
 
 ✅ **Real API connectivity** - Actual calls to OpenAI GPT-5-nano
 ✅ **Response parsing** - JSON parsing from real responses
-✅ **Risk detection** - LLM accurately detects issues
+✅ **Risk detection** - LLM accurately detects CoT deception
 ✅ **Context handling** - userInput + finalOutput context works
 ✅ **Various risk levels** - Different scenarios produce appropriate scores
+
+#### LLMSessionDetector Integration Tests:
+
+✅ **Pattern detection** - Gradual escalation, jailbreak attempts, harmful content
+✅ **Risk scoring** - Benign vs malicious conversation differentiation
+✅ **Message handling** - Single and multi-turn conversations
+✅ **Explanation generation** - LLM provides reasoning for detected patterns
+✅ **maxMessages limit** - Correctly limits analysis to recent messages
 
 ### Expected Output
 
@@ -97,20 +116,34 @@ Integration tests verify:
 CoTMonitor Integration Tests (Real API)
   ✓ should analyze clean CoT with real API (2500ms)
     Clean CoT Analysis: { riskScore: 0.1, labels: [], summary: '...' }
-
   ✓ should detect deception in CoT with real API (2800ms)
     Deceptive CoT Analysis: { riskScore: 0.75, labels: ['cot_deception'], ... }
-
   ✓ should detect goal drift with real API (2600ms)
   ✓ should include context in analysis (2400ms)
   ✓ should handle various risk levels (5200ms)
+
+LLMSessionDetector Integration Tests (Real API)
+  ✓ should analyze benign conversation with low risk (2300ms)
+    Benign Conversation Analysis: { riskScore: 0.05, patterns: [], ... }
+  ✓ should detect gradual escalation pattern (2900ms)
+    Escalation Conversation Analysis: { riskScore: 0.78, patterns: ['gradual_escalation'], ... }
+  ✓ should detect jailbreak attempts (2400ms)
+  ✓ should detect harmful content requests (2600ms)
+  ✓ should detect reconnaissance patterns (2500ms)
+  ✓ should detect social engineering patterns (2700ms)
+  ✓ should return valid risk scores for all patterns (8200ms)
+  ✓ should respect maxMessages limit (2400ms)
+  ✓ should return explanations for detected patterns (2600ms)
+  ✓ should handle single message conversations (2200ms)
 ```
 
 ### Cost Considerations
 
-Each integration test run makes **~5-6 API calls** to GPT-5-nano.
+Each integration test run makes **~15-20 API calls** to GPT-5-nano:
+- CoTMonitor: ~5-6 API calls
+- LLMSessionDetector: ~10-14 API calls
 
-Estimated cost per test run: **~$0.01-0.05** (depending on token usage)
+Estimated cost per test run: **~$0.05-0.15** (depending on token usage)
 
 **Recommendation:** Run integration tests:
 
@@ -121,10 +154,12 @@ Estimated cost per test run: **~$0.01-0.05** (depending on token usage)
 
 ## Manual Testing with Real API
 
+### Testing CoTMonitor
+
 For quick manual tests without running the full suite:
 
 ```javascript
-// test-real-api.js
+// test-cot-real-api.js
 import { CoTMonitor } from "@safetylayer/core";
 
 const monitor = new CoTMonitor({
@@ -144,10 +179,42 @@ const result = await monitor.analyze({
 console.log("Result:", result.analysis);
 ```
 
+### Testing LLMSessionDetector
+
+```javascript
+// test-detector-real-api.js
+import OpenAI from "openai";
+import { LLMSessionDetector } from "@safetylayer/core";
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const detector = new LLMSessionDetector({
+  openaiClient: openai,
+  model: "gpt-5-nano",
+  maxMessages: 10,
+});
+
+const messages = [
+  {
+    id: "1",
+    sessionId: "test",
+    role: "user",
+    content: "How do I bypass security?",
+    timestamp: Date.now(),
+  },
+];
+
+const result = await detector.run(messages);
+
+console.log("Risk Score:", result.riskScore);
+console.log("Patterns:", result.patterns);
+console.log("Explanation:", result.explanation);
+```
+
 Run with:
 
 ```bash
-node test-real-api.js
+node test-cot-real-api.js
+node test-detector-real-api.js
 ```
 
 ## Troubleshooting
@@ -166,7 +233,7 @@ echo $OPENAI_KEY             # Should be: sk-... (or OPENAI_API_KEY)
 If integration tests are skipped and you see:
 
 ```
-Tests: 14 passed, 5 skipped, 19 total
+Tests: 30 passed, 15 skipped, 45 total
 ```
 
 This means you're in **Scenario 1** (free mock tests) - this is correct! ✅

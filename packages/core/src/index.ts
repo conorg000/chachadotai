@@ -1,6 +1,6 @@
 /**
  * @safetylayer/core
- * 
+ *
  * Core library for session-aware behavioral security and Chain-of-Thought monitoring.
  */
 
@@ -17,6 +17,13 @@ export type {
 // Export SessionEngine
 export { SessionEngine } from './SessionEngine.js';
 export type { SessionEngineOptions } from './SessionEngine.js';
+
+// Export LLMSessionDetector
+export { LLMSessionDetector } from './LLMSessionDetector.js';
+export type {
+  SessionDetectorResult,
+  LLMSessionDetectorOptions
+} from './LLMSessionDetector.js';
 
 // Export CoTMonitor
 export { CoTMonitor } from './CoTMonitor.js';
