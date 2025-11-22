@@ -1,6 +1,7 @@
 {
   "name": "@safetylayer/core",
   "version": "0.1.0",
+  "type": "module",
   "description": "Core library for session-aware behavioral security and CoT monitoring",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
