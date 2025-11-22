@@ -198,6 +198,8 @@ Send a message and get an AI response with CoT analysis.
 **Notes:**
 
 - The `cot` field may be `null` if no reasoning was detected
+- CoT records are also stored in the assistant message's `cotRecord` field
+- Access historical CoT analysis via `GET /sessions/:id` - check assistant messages for `cotRecord`
 - Risk scores range from 0 (safe) to 1 (high risk)
 - The CoT analysis detects: `cot_deception`, `goal_drift`, `policy_evasion`
 
@@ -238,9 +240,29 @@ Get detailed information about a specific session.
       {
         "id": "string",
         "sessionId": "string",
-        "role": "user" | "assistant",
+        "role": "user",
         "content": "string",
         "timestamp": 1763796000000
+      },
+      {
+        "id": "string",
+        "sessionId": "string",
+        "role": "assistant",
+        "content": "string",
+        "timestamp": 1763796000000,
+        "cotRecord": {
+          "messageId": "string",
+          "sessionId": "string",
+          "rawCoT": "Step by step reasoning...",
+          "userInput": "string",
+          "finalOutput": "string",
+          "analysis": {
+            "riskScore": 0.0,
+            "labels": [],
+            "indicators": [],
+            "summary": "Clean reasoning detected."
+          }
+        }
       }
     ],
     "riskScore": 0.05,
@@ -255,6 +277,8 @@ Get detailed information about a specific session.
   }
 }
 ```
+
+**Note:** Assistant messages may include a `cotRecord` field containing the chain-of-thought analysis for that response.
 
 **404 Response:**
 
@@ -336,6 +360,12 @@ async function loadSessions() {
   sessions.value = data.sessions;
 }
 
+async function loadSession(sessionId) {
+  const response = await fetch(`http://localhost:3000/sessions/${sessionId}`);
+  const data = await response.json();
+  currentSession.value = data.session;
+}
+
 async function sendMessage() {
   const response = await fetch("http://localhost:3000/chat", {
     method: "POST",
@@ -350,12 +380,26 @@ async function sendMessage() {
   currentSession.value = data.session;
   userMessage.value = "";
 }
+
+// Access CoT for any assistant message
+function getCoTForMessage(message) {
+  return message.role === "assistant" ? message.cotRecord : null;
+}
 </script>
 
 <template>
   <div>
     <input v-model="userMessage" @keyup.enter="sendMessage" />
     <button @click="sendMessage">Send</button>
+
+    <!-- Display messages with CoT -->
+    <div v-for="msg in currentSession?.messages" :key="msg.id">
+      <p>{{ msg.content }}</p>
+      <div v-if="msg.cotRecord">
+        <span>Risk: {{ msg.cotRecord.analysis.riskScore }}</span>
+        <span>Labels: {{ msg.cotRecord.analysis.labels.join(", ") }}</span>
+      </div>
+    </div>
   </div>
 </template>
 ```
@@ -458,6 +502,7 @@ The API has CORS enabled for all origins in development. If you're having issues
 - **Risk Scoring:** Currently uses stub values (message count / 20). Will be replaced when Ticket 3 (LLM SessionDetector) is complete.
 - **CoT Extraction:** Currently uses `<answer>` tag parsing. Will be replaced with native reasoning API when account verification is complete (see TODOs in `openai.ts`).
 - **Session Storage:** In-memory only. Sessions are lost on server restart.
+- **CoT Storage:** CoT records are stored in assistant messages (`message.cotRecord`). Access them via `GET /sessions/:id` to see historical CoT analysis.
 
 ## Next Steps
 

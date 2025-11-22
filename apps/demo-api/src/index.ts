@@ -1,7 +1,7 @@
-import express, { Request, Response } from "express";
+import { CoTMonitor, Message, SessionEngine } from "@safetylayer/core";
 import cors from "cors";
 import dotenv from "dotenv";
-import { SessionEngine, CoTMonitor, Message } from "@safetylayer/core";
+import express, { Request, Response } from "express";
 import { getResponseWithReasoning } from "./utils/openai.js";
 
 // Load environment variables
@@ -28,7 +28,7 @@ app.get("/health", (req: Request, res: Response) => {
 /**
  * POST /chat
  * Handles chat interactions with CoT monitoring
- * 
+ *
  * Body: { sessionId: string, userMessage: string }
  * Returns: { assistant: Message, session: SessionState, cot?: CoTRecord }
  */
@@ -62,35 +62,33 @@ app.post("/chat", async (req: Request, res: Response) => {
       "medium"
     );
 
-    // 3. Create assistant message and ingest into session
+    // 3. Create assistant message with CoT analysis (if present)
     const assistantMsg: Message = {
       id: `msg-${Date.now()}-assistant`,
       sessionId,
       role: "assistant",
       content,
       timestamp: Date.now(),
+      cotRecord: reasoning
+        ? await cotMonitor.analyze({
+            messageId: `msg-${Date.now()}-assistant`,
+            sessionId,
+            rawCoT: reasoning,
+            userInput: userMessage,
+            finalOutput: content,
+            analysis: null,
+          })
+        : undefined,
     };
 
+    // 4. Ingest message (with CoT attached)
     const sessionState = sessionEngine.ingestMessage(assistantMsg);
-
-    // 4. Analyze CoT if reasoning is present
-    let cotRecord = null;
-    if (reasoning) {
-      cotRecord = await cotMonitor.analyze({
-        messageId: assistantMsg.id,
-        sessionId,
-        rawCoT: reasoning,
-        userInput: userMessage,
-        finalOutput: content,
-        analysis: null,
-      });
-    }
 
     // 5. Return response
     res.json({
       assistant: assistantMsg,
       session: sessionState,
-      cot: cotRecord,
+      cot: assistantMsg.cotRecord,
     });
   } catch (error: any) {
     console.error("Error in /chat endpoint:", error);
@@ -108,19 +106,23 @@ app.post("/chat", async (req: Request, res: Response) => {
 app.get("/sessions", (req: Request, res: Response) => {
   try {
     const sessions = sessionEngine.listSessions();
-    
+
     // Format for list view
     const sessionList = sessions.map((session) => ({
       sessionId: session.sessionId,
       riskScore: session.riskScore,
       patterns: session.patterns,
       messageCount: session.messages.length,
-      lastMessage: session.messages.length > 0
-        ? {
-            timestamp: session.messages[session.messages.length - 1].timestamp,
-            preview: session.messages[session.messages.length - 1].content.substring(0, 100),
-          }
-        : null,
+      lastMessage:
+        session.messages.length > 0
+          ? {
+              timestamp:
+                session.messages[session.messages.length - 1].timestamp,
+              preview: session.messages[
+                session.messages.length - 1
+              ].content.substring(0, 100),
+            }
+          : null,
     }));
 
     res.json({ sessions: sessionList });
@@ -137,12 +139,12 @@ app.get("/sessions", (req: Request, res: Response) => {
 app.get("/sessions/:id", (req: Request, res: Response) => {
   try {
     const session = sessionEngine.getSession(req.params.id);
-    
+
     if (!session) {
       res.status(404).json({ error: "Session not found" });
       return;
     }
-    
+
     res.json({ session });
   } catch (error: any) {
     console.error("Error in /sessions/:id endpoint:", error);

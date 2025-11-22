@@ -2,7 +2,7 @@
  * Shared type definitions for SafetyLayer
  */
 
-export type Role = 'user' | 'assistant';
+export type Role = "user" | "assistant";
 
 export interface Message {
   id: string;
@@ -10,6 +10,7 @@ export interface Message {
   role: Role;
   content: string;
   timestamp: number;
+  cotRecord?: CoTRecord;
 }
 
 export interface RiskSnapshot {
@@ -37,8 +38,7 @@ export interface CoTRecord {
   messageId: string;
   sessionId: string;
   rawCoT: string;
-  userInput?: string;      // Optional: the user's prompt for context
-  finalOutput?: string;     // Optional: the model's final answer
+  userInput?: string; // Optional: the user's prompt for context
+  finalOutput?: string; // Optional: the model's final answer
   analysis: CoTAnalysis | null;
 }
-
