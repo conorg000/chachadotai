@@ -1,5 +1,5 @@
-import OpenAI from 'openai';
-import { Message } from './types';
+import OpenAI from "openai";
+import { Message } from "./types";
 
 /**
  * Result from LLM-based session risk detection
@@ -30,7 +30,7 @@ export class LLMSessionDetector {
 
   constructor(opts: LLMSessionDetectorOptions) {
     this.client = opts.openaiClient;
-    this.model = opts.model ?? 'gpt-5-nano';
+    this.model = opts.model ?? "gpt-5-nano";
     this.maxMessages = opts.maxMessages ?? 10;
   }
 
@@ -47,7 +47,7 @@ export class LLMSessionDetector {
       return {
         riskScore: 0,
         patterns: [],
-        explanation: 'No messages to analyze'
+        explanation: "No messages to analyze",
       };
     }
 
@@ -59,21 +59,21 @@ export class LLMSessionDetector {
         model: this.model,
         messages: [
           {
-            role: 'system',
-            content: 'You are a security analyst specialized in detecting risky behavioral patterns in AI conversations. Analyze the conversation and respond ONLY with valid JSON.'
+            role: "system",
+            content:
+              "You are a security analyst specialized in detecting risky behavioral patterns in AI conversations. Analyze the conversation and respond ONLY with valid JSON.",
           },
           {
-            role: 'user',
-            content: prompt
-          }
+            role: "user",
+            content: prompt,
+          },
         ],
-        temperature: 0.3,
-        response_format: { type: 'json_object' }
+        response_format: { type: "json_object" },
       });
 
       const content = response.choices[0]?.message?.content;
       if (!content) {
-        throw new Error('No response from LLM');
+        throw new Error("No response from LLM");
       }
 
       // Parse the JSON response
@@ -82,15 +82,17 @@ export class LLMSessionDetector {
       return {
         riskScore: this.normalizeRiskScore(result.risk_score),
         patterns: Array.isArray(result.patterns) ? result.patterns : [],
-        explanation: result.explanation
+        explanation: result.explanation,
       };
     } catch (error) {
-      console.error('LLMSessionDetector error:', error);
+      console.error("LLMSessionDetector error:", error);
       // Fallback to safe defaults on error
       return {
         riskScore: 0,
         patterns: [],
-        explanation: `Error during analysis: ${error instanceof Error ? error.message : 'Unknown error'}`
+        explanation: `Error during analysis: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`,
       };
     }
   }
@@ -100,8 +102,8 @@ export class LLMSessionDetector {
    */
   private buildPrompt(messages: Message[]): string {
     const conversationText = messages
-      .map(msg => `${msg.role.toUpperCase()}: ${msg.content}`)
-      .join('\n');
+      .map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`)
+      .join("\n");
 
     return `Analyze the following conversation for security risks and behavioral patterns.
 
@@ -132,7 +134,7 @@ Example response:
    * Normalizes risk score to [0, 1] range
    */
   private normalizeRiskScore(score: any): number {
-    const num = typeof score === 'number' ? score : parseFloat(score);
+    const num = typeof score === "number" ? score : parseFloat(score);
     if (isNaN(num)) return 0;
     return Math.max(0, Math.min(1, num));
   }

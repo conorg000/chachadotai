@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 
-// Load .env file from repo root (two levels up from packages/core)
+// Load .env file from repo root
 dotenv.config({ path: "../../.env" });
 
 export default {
@@ -21,3 +21,4 @@ export default {
   testMatch: ["**/__tests__/**/*.test.ts"],
   collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts", "!src/__tests__/**"],
 };
+
