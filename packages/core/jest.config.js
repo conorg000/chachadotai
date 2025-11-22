@@ -1,3 +1,8 @@
+import dotenv from 'dotenv';
+
+// Load .env file from repo root (two levels up from packages/core)
+dotenv.config({ path: '../../.env' });
+
 export default {
   preset: 'ts-jest/presets/default-esm',
   testEnvironment: 'node',
