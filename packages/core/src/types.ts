@@ -37,6 +37,8 @@ export interface CoTRecord {
   messageId: string;
   sessionId: string;
   rawCoT: string;
+  userInput?: string;      // Optional: the user's prompt for context
+  finalOutput?: string;     // Optional: the model's final answer
   analysis: CoTAnalysis | null;
 }
 

@@ -20,4 +20,5 @@ export type { SessionEngineOptions } from './SessionEngine.js';
 
 // Export CoTMonitor
 export { CoTMonitor } from './CoTMonitor.js';
+export type { CoTMonitorOptions } from './CoTMonitor.js';
 

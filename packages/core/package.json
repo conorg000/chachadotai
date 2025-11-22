@@ -14,7 +14,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "node --experimental-vm-modules ../../node_modules/jest/bin/jest.js"
   },
   "keywords": [
     "ai-safety",
@@ -22,8 +23,14 @@
     "security",
     "monitoring"
   ],
+  "dependencies": {
+    "openai": "^4.20.0"
+  },
   "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.11",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.1",
     "typescript": "^5.3.3"
   }
 }
-
