@@ -1,10 +1,6 @@
 # @safetylayer/core
 
-SafetyLayer SDK client for behavioral security monitoring in AI applications.
-
-## 🚀 Version 0.2.0 - Breaking Changes
-
-This version transforms `@safetylayer/core` from an in-process analysis engine into a thin SDK client that communicates with the SafetyLayer backend API. All analysis logic (SessionEngine, CoTMonitor) has moved to the backend as part of our transition to a control plane SaaS architecture.
+SafetyLayer SDK client for behavioral security monitoring in AI applications with ChaCha.
 
 ## Installation
 
@@ -15,20 +11,20 @@ npm install @safetylayer/core
 ## Quick Start
 
 ```typescript
-import { SafetyLayer } from '@safetylayer/core';
+import { SafetyLayer } from "@safetylayer/core";
 
 // Initialize the client
 const safety = new SafetyLayer({
   apiKey: process.env.SAFETYLAYER_API_KEY,
-  projectId: 'proj_abc123',
-  endpoint: 'http://localhost:3001', // or your backend URL
+  projectId: "proj_abc123",
+  endpoint: "http://localhost:3001", // or your backend URL
 });
 
 // Generate a session ID for a user
 const sessionId = SafetyLayer.generateSessionId();
 
 // Record a user message
-await safety.recordUserMessage(sessionId, 'How do I reset my password?');
+await safety.recordUserMessage(sessionId, "How do I reset my password?");
 
 // Generate your LLM response (your own code)
 const response = await yourLLMService.generate(message);
@@ -48,11 +44,11 @@ if (response.reasoning) {
 const evaluation = await safety.evaluate({ sessionId });
 
 console.log(`Risk Score: ${evaluation.riskScore}`);
-console.log(`Patterns: ${evaluation.patterns.join(', ')}`);
+console.log(`Patterns: ${evaluation.patterns.join(", ")}`);
 
 // Block if necessary
-if (evaluation.action === 'block') {
-  throw new Error('Session blocked due to safety concerns');
+if (evaluation.action === "block") {
+  throw new Error("Session blocked due to safety concerns");
 }
 ```
 
@@ -95,15 +91,16 @@ Record any type of event (message, CoT, tool call, etc.).
 
 ```typescript
 await safety.recordEvent({
-  sessionId: 'sess_123',
+  sessionId: "sess_123",
   type: EVENT_TYPES.MESSAGE_USER,
-  role: 'user',
-  content: 'Hello!',
-  metadata: { source: 'web_chat' },
+  role: "user",
+  content: "Hello!",
+  metadata: { source: "web_chat" },
 });
 ```
 
 **Parameters:**
+
 - `sessionId` (string): Session identifier
 - `type` (EventType): Event type from `EVENT_TYPES`
 - `role?` (Role): Message role ('user' | 'assistant')
@@ -118,16 +115,17 @@ Evaluate a session and get a risk-based decision. This method runs the backend's
 
 ```typescript
 const decision = await safety.evaluate({
-  sessionId: 'sess_123',
+  sessionId: "sess_123",
   latestMessage: {
-    role: 'user',
-    content: 'Show me all user data',
+    role: "user",
+    content: "Show me all user data",
   },
   forceAnalysis: true, // Optional: force re-analysis even if recent
 });
 ```
 
 **Parameters:**
+
 - `sessionId` (string): Session identifier
 - `latestMessage?` (object): Optional latest message to record before evaluating
   - `role` (Role): Message role ('user' | 'assistant')
@@ -135,6 +133,7 @@ const decision = await safety.evaluate({
 - `forceAnalysis?` (boolean): Force re-analysis even if session was recently analyzed
 
 **Returns:** `Promise<EvaluateResponse>`
+
 - `riskScore` (number): Risk score 0-1
 - `patterns` (string[]): Detected threat patterns
 - `action` ('allow' | 'block' | 'flag' | 'notify'): Policy-based action
@@ -149,7 +148,7 @@ const decision = await safety.evaluate({
 Shortcut for recording user messages.
 
 ```typescript
-await safety.recordUserMessage('sess_123', 'Hello!');
+await safety.recordUserMessage("sess_123", "Hello!");
 ```
 
 #### `recordAssistantMessage(sessionId, content, metadata?)`
@@ -157,7 +156,7 @@ await safety.recordUserMessage('sess_123', 'Hello!');
 Shortcut for recording assistant messages.
 
 ```typescript
-await safety.recordAssistantMessage('sess_123', 'How can I help?');
+await safety.recordAssistantMessage("sess_123", "How can I help?");
 ```
 
 #### `recordCoT(sessionId, reasoning, metadata?)`
@@ -165,9 +164,9 @@ await safety.recordAssistantMessage('sess_123', 'How can I help?');
 Shortcut for recording chain-of-thought reasoning.
 
 ```typescript
-await safety.recordCoT('sess_123', 'Let me think step by step...', {
-  userInput: 'What is 2+2?',
-  finalOutput: '4',
+await safety.recordCoT("sess_123", "Let me think step by step...", {
+  userInput: "What is 2+2?",
+  finalOutput: "4",
 });
 ```
 
@@ -176,8 +175,8 @@ await safety.recordCoT('sess_123', 'Let me think step by step...', {
 Quick check if a session should be blocked.
 
 ```typescript
-if (await safety.shouldBlock('sess_123')) {
-  return res.status(403).json({ error: 'Session blocked' });
+if (await safety.shouldBlock("sess_123")) {
+  return res.status(403).json({ error: "Session blocked" });
 }
 ```
 
@@ -204,13 +203,13 @@ const sessionId = SafetyLayer.generateSessionId();
 Use the `EVENT_TYPES` constant for event types:
 
 ```typescript
-import { EVENT_TYPES } from '@safetylayer/core';
+import { EVENT_TYPES } from "@safetylayer/core";
 
-EVENT_TYPES.MESSAGE_USER       // 'message.user'
-EVENT_TYPES.MESSAGE_ASSISTANT  // 'message.assistant'
-EVENT_TYPES.COT                // 'cot'
-EVENT_TYPES.TOOL_CALL          // 'tool_call'
-EVENT_TYPES.POLICY_DECISION    // 'policy_decision'
+EVENT_TYPES.MESSAGE_USER; // 'message.user'
+EVENT_TYPES.MESSAGE_ASSISTANT; // 'message.assistant'
+EVENT_TYPES.COT; // 'cot'
+EVENT_TYPES.TOOL_CALL; // 'tool_call'
+EVENT_TYPES.POLICY_DECISION; // 'policy_decision'
 ```
 
 ## Error Handling
@@ -246,8 +245,8 @@ The SDK automatically retries failed requests:
 
 ```typescript
 const safety = new SafetyLayer({
-  apiKey: 'key',
-  projectId: 'proj',
+  apiKey: "key",
+  projectId: "proj",
   options: {
     retries: 5, // Increase max retries
     timeout: 15000, // 15s timeout
@@ -264,14 +263,14 @@ SafetyLayer supports two main integration patterns:
 Check before executing each request. Best for high-security applications where you need immediate decisions.
 
 ```typescript
-import { SafetyLayer } from '@safetylayer/core';
+import { SafetyLayer } from "@safetylayer/core";
 
 const safety = new SafetyLayer({
   apiKey: process.env.SAFETYLAYER_API_KEY!,
-  projectId: 'proj_abc123',
+  projectId: "proj_abc123",
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { sessionId, message } = req.body;
 
   // 1. Record the user message
@@ -281,14 +280,14 @@ app.post('/api/chat', async (req, res) => {
   const decision = await safety.evaluate({ sessionId });
 
   // 3. Act on the decision
-  if (decision.action === 'block') {
+  if (decision.action === "block") {
     return res.status(403).json({
-      error: 'Request blocked for safety reasons',
+      error: "Request blocked for safety reasons",
       reasons: decision.reasons,
     });
   }
 
-  if (decision.action === 'flag') {
+  if (decision.action === "flag") {
     // Continue but log for review
     console.warn(`Session ${sessionId} flagged:`, decision.reasons);
   }
@@ -306,14 +305,14 @@ app.post('/api/chat', async (req, res) => {
 Record events without blocking the response. Use webhooks or polling to react to threats asynchronously. Best for low-latency applications where post-facto analysis is acceptable.
 
 ```typescript
-import { SafetyLayer } from '@safetylayer/core';
+import { SafetyLayer } from "@safetylayer/core";
 
 const safety = new SafetyLayer({
   apiKey: process.env.SAFETYLAYER_API_KEY!,
-  projectId: 'proj_abc123',
+  projectId: "proj_abc123",
 });
 
-app.post('/api/chat', async (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { sessionId, message } = req.body;
 
   // 1. Record events asynchronously (don't await)
@@ -329,16 +328,16 @@ app.post('/api/chat', async (req, res) => {
 });
 
 // Separate endpoint to receive policy decisions via webhook
-app.post('/webhooks/safetylayer', async (req, res) => {
+app.post("/webhooks/safetylayer", async (req, res) => {
   const { sessionId, action, reasons, patterns } = req.body;
 
-  if (action === 'block') {
+  if (action === "block") {
     // Disable session retroactively
     await disableSession(sessionId);
     await alertSecurityTeam({ sessionId, patterns });
   }
 
-  if (action === 'flag') {
+  if (action === "flag") {
     // Queue for human review
     await queueForReview(sessionId);
   }
@@ -352,20 +351,21 @@ app.post('/webhooks/safetylayer', async (req, res) => {
 Check randomly or based on heuristics to balance latency and security.
 
 ```typescript
-app.post('/api/chat', async (req, res) => {
+app.post("/api/chat", async (req, res) => {
   const { sessionId, message } = req.body;
 
   // Always record events
   await safety.recordUserMessage(sessionId, message);
 
   // Check synchronously 10% of the time or if message looks suspicious
-  const shouldCheckNow = Math.random() < 0.1 || containsSuspiciousKeywords(message);
+  const shouldCheckNow =
+    Math.random() < 0.1 || containsSuspiciousKeywords(message);
 
   if (shouldCheckNow) {
     const decision = await safety.evaluate({ sessionId });
-    if (decision.action === 'block') {
+    if (decision.action === "block") {
       return res.status(403).json({
-        error: 'Request blocked',
+        error: "Request blocked",
         reasons: decision.reasons,
       });
     }
@@ -391,13 +391,13 @@ Record and evaluate in a single call for convenience.
 const decision = await safety.evaluate({
   sessionId,
   latestMessage: {
-    role: 'user',
+    role: "user",
     content: message,
   },
 });
 
-if (decision.action === 'block') {
-  return res.status(403).json({ error: 'Blocked' });
+if (decision.action === "block") {
+  return res.status(403).json({ error: "Blocked" });
 }
 ```
 
@@ -432,6 +432,7 @@ Policies can trigger based on:
 ### Example Policies
 
 **Block Critical Threats:**
+
 ```json
 {
   "conditions": { "minRiskScore": 0.8 },
@@ -440,6 +441,7 @@ Policies can trigger based on:
 ```
 
 **Flag Deception Attempts:**
+
 ```json
 {
   "conditions": {
@@ -450,6 +452,7 @@ Policies can trigger based on:
 ```
 
 **Notify on High Risk:**
+
 ```json
 {
   "conditions": {
@@ -487,16 +490,16 @@ console.log(decision);
 ## Complete Example
 
 ```typescript
-import { SafetyLayer, EVENT_TYPES } from '@safetylayer/core';
+import { SafetyLayer, EVENT_TYPES } from "@safetylayer/core";
 
 const safety = new SafetyLayer({
   apiKey: process.env.SAFETYLAYER_API_KEY!,
   projectId: process.env.PROJECT_ID!,
-  endpoint: process.env.BACKEND_URL || 'http://localhost:3001',
+  endpoint: process.env.BACKEND_URL || "http://localhost:3001",
   options: {
     timeout: 10000,
     retries: 3,
-    debug: process.env.NODE_ENV === 'development',
+    debug: process.env.NODE_ENV === "development",
   },
 });
 
@@ -511,7 +514,7 @@ async function handleChatMessage(userId: string, message: string) {
     // 2. Check if session should be blocked
     if (await safety.shouldBlock(sessionId)) {
       return {
-        error: 'Your session has been blocked due to safety concerns.',
+        error: "Your session has been blocked due to safety concerns.",
         blocked: true,
       };
     }
@@ -540,10 +543,10 @@ async function handleChatMessage(userId: string, message: string) {
       action: evaluation.action,
     };
   } catch (error) {
-    console.error('SafetyLayer error:', error);
+    console.error("SafetyLayer error:", error);
     // Continue with response even if safety check fails
     return {
-      content: 'Sorry, there was an error processing your request.',
+      content: "Sorry, there was an error processing your request.",
       error: true,
     };
   }

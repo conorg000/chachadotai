@@ -5,7 +5,7 @@
         <div class="header-left">
           <div class="title-container">
             <ShieldEllipsis :size="28" class="logo-icon" />
-            <h1>Cha Cha</h1>
+            <h1>ChaCha</h1>
           </div>
         </div>
         <div class="header-right">
