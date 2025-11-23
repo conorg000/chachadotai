@@ -1,6 +1,6 @@
 ---
 title: 'Quick Start'
-description: 'Get SafetyLayer SDK running in your application in 5 minutes'
+description: 'Integrate ChaCha into your LLM application in 5 minutes using the SafetyLayer SDK'
 ---
 
 ## Prerequisites
@@ -9,10 +9,10 @@ Before you begin, ensure you have:
 
 <Check>Node.js 18+ installed</Check>
 <Check>npm or pnpm package manager</Check>
-<Check>SafetyLayer backend running (see [Backend Setup](/guides/backend-integration))</Check>
+<Check>ChaCha account with API key</Check>
 
 <Note>
-  For this quickstart, we'll use the local demo backend. In production, you'll point to your hosted backend.
+  ChaCha is a fully hosted platform. Sign up to get your API credentials and start monitoring your LLM application.
 </Note>
 
 ## Installation
@@ -35,23 +35,24 @@ yarn add @safetylayer/core
 
 </CodeGroup>
 
-## Start the Backend
+## Get Your API Key
 
-First, make sure the backend API is running:
+1. Sign up for ChaCha and access your dashboard
+2. Create a new project
+3. Copy your project ID and API key
+4. Set them as environment variables:
 
 ```bash
-# In the monorepo
-npm run dev -w demo-api
+export CHACHA_API_KEY="your_api_key_here"
+export CHACHA_PROJECT_ID="proj_abc123"
 ```
-
-The backend will start on `http://localhost:3001`. Keep this running in a separate terminal.
 
 ## Your First SDK Integration
 
-Let's integrate SafetyLayer into your app in under 5 minutes:
+Let's integrate ChaCha into your app in under 5 minutes:
 
 <Steps>
-  <Step title="Import SafetyLayer">
+  <Step title="Import the SafetyLayer SDK">
     ```typescript
     import { SafetyLayer } from '@safetylayer/core';
     ```
@@ -60,14 +61,19 @@ Let's integrate SafetyLayer into your app in under 5 minutes:
   <Step title="Initialize the Client">
     ```typescript
     const safety = new SafetyLayer({
-      apiKey: process.env.SAFETYLAYER_API_KEY || 'demo_key',
-      projectId: 'proj_demo',
-      endpoint: 'http://localhost:3001',
+      apiKey: process.env.CHACHA_API_KEY,
+      projectId: process.env.CHACHA_PROJECT_ID,
+      endpoint: 'https://api.chacha.ai',
+      options: {
+        timeout: 10000,  // 10 second timeout
+        retries: 3,       // Retry failed requests 3 times
+        debug: false,     // Enable for development
+      },
     });
     ```
     
     <Note>
-      The demo backend doesn't require authentication. In production, use real API keys.
+      The SDK automatically handles retries, timeouts, and error handling so you don't have to.
     </Note>
   </Step>
 
@@ -121,7 +127,7 @@ Let's integrate SafetyLayer into your app in under 5 minutes:
   </Step>
 </Steps>
 
-That's it! You now have SafetyLayer monitoring your LLM application.
+That's it! You now have ChaCha monitoring your LLM application via the SafetyLayer SDK.
 
 ## Complete Example
 
@@ -130,11 +136,11 @@ Here's a full integration example:
 ```typescript
 import { SafetyLayer } from '@safetylayer/core';
 
-// Initialize SDK
+// Initialize SafetyLayer SDK
 const safety = new SafetyLayer({
-  apiKey: process.env.SAFETYLAYER_API_KEY,
-  projectId: 'proj_demo',
-  endpoint: process.env.BACKEND_URL || 'http://localhost:3001',
+  apiKey: process.env.CHACHA_API_KEY,
+  projectId: process.env.CHACHA_PROJECT_ID,
+  endpoint: process.env.CHACHA_ENDPOINT || 'https://api.chacha.ai',
   options: {
     timeout: 10000,
     retries: 3,
@@ -193,49 +199,83 @@ async function handleChat(userId: string, message: string) {
 
 ## Testing Your Setup
 
-Verify everything works with the demo:
-
-<CodeGroup>
-
-```bash Test with cURL
-curl -X POST http://localhost:3001/chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sessionId": "test_session",
-    "userMessage": "Hello, how can you help me?"
-  }'
-```
-
-```bash Run Test Script
-./test-api.sh
-```
-
-```bash Run SDK Tests
-npm test -w @safetylayer/core
-```
-
-</CodeGroup>
-
-## Convenience Methods
-
-The SDK provides several convenience methods:
+Test your integration by recording some events:
 
 ```typescript
-// Record specific event types
-await safety.recordUserMessage(sessionId, content);
-await safety.recordAssistantMessage(sessionId, content);
-await safety.recordCoT(sessionId, reasoning);
+// Create a test session
+const testSessionId = SafetyLayer.generateSessionId();
 
-// Quick risk check
-const shouldBlock = await safety.shouldBlock(sessionId);
+// Record a test user message
+await safety.recordUserMessage(testSessionId, "Hello, how can you help me?");
 
-// Record any event type
+// Record a test assistant response
+await safety.recordAssistantMessage(testSessionId, "I'm here to help! What would you like to know?");
+
+// Evaluate the session
+const result = await safety.evaluate({ sessionId: testSessionId });
+console.log('Risk score:', result.riskScore);
+console.log('Action:', result.action);
+```
+
+You should see the events appear in your ChaCha dashboard!
+
+## SDK Methods
+
+The SafetyLayer SDK provides convenient methods for recording different event types:
+
+### Recording Events
+
+```typescript
+// Record user messages
+await safety.recordUserMessage(sessionId, "User's message here");
+
+// Record assistant responses
+await safety.recordAssistantMessage(sessionId, "Assistant's response here");
+
+// Record chain-of-thought reasoning
+await safety.recordCoT(sessionId, "Step by step reasoning...", {
+  userInput: "original question",
+  finalOutput: "final answer"
+});
+
+// Record custom events (e.g., tool calls, system events)
 await safety.recordEvent({
   sessionId,
   type: EVENT_TYPES.TOOL_CALL,
   content: JSON.stringify(toolResult),
-  metadata: { tool: 'calculator' },
+  metadata: { tool: 'calculator', duration: 150 },
 });
+```
+
+### Evaluating Risk
+
+```typescript
+// Full evaluation with detailed results
+const evaluation = await safety.evaluate({ 
+  sessionId,
+  forceAnalysis: true  // Force re-analysis even if recently evaluated
+});
+console.log('Risk:', evaluation.riskScore);
+console.log('Patterns:', evaluation.patterns);
+console.log('Action:', evaluation.action);  // 'allow', 'block', 'flag', 'notify'
+console.log('Reasons:', evaluation.reasons);
+
+// Quick boolean check
+const shouldBlock = await safety.shouldBlock(sessionId);
+if (shouldBlock) {
+  return { error: 'Request blocked for safety' };
+}
+```
+
+### Session Management
+
+```typescript
+// Generate unique session IDs
+const sessionId = SafetyLayer.generateSessionId();
+// Returns: "sess_<timestamp>_<random>"
+
+// Or use your own session identifiers
+const sessionId = `user_${userId}_${conversationId}`;
 ```
 
 ## Error Handling
@@ -268,20 +308,32 @@ try {
 
 ## Configuration Options
 
-Customize the SDK behavior:
+Customize the SDK behavior to fit your needs:
 
 ```typescript
 const safety = new SafetyLayer({
-  apiKey: 'your_api_key',
-  projectId: 'proj_abc123',
-  endpoint: 'https://api.safetylayer.dev', // Production endpoint
+  // Required
+  apiKey: 'your_api_key',           // Your ChaCha API key
+  projectId: 'proj_abc123',          // Your project ID
+  
+  // Optional
+  endpoint: 'https://api.chacha.ai', // ChaCha backend URL
+  
   options: {
-    timeout: 15000,      // 15 second timeout
-    retries: 5,          // Retry 5 times on failure
-    debug: true,         // Log debug info
+    timeout: 15000,    // Request timeout in ms (default: 10000)
+    retries: 5,        // Max retry attempts (default: 3)
+    debug: true,       // Enable debug logging (default: false)
   },
 });
 ```
+
+### Advanced Configuration
+
+The SDK automatically handles:
+- **Retries with exponential backoff** for network errors and rate limits
+- **Request timeouts** to prevent hanging requests
+- **Error handling** with typed exceptions for better debugging
+- **Connection pooling** for optimal performance
 
 ## What's Next?
 
@@ -303,38 +355,41 @@ const safety = new SafetyLayer({
   </Card>
   
   <Card
-    title="Backend Setup"
+    title="Backend Integration"
     icon="server"
     href="/guides/backend-integration"
   >
-    Set up your own backend instance
+    Connect to the ChaCha backend
   </Card>
   
   <Card
-    title="Demo"
-    icon="play"
-    href="/demo/running-demo"
+    title="Architecture"
+    icon="sitemap"
+    href="/architecture"
   >
-    Run the complete demo
+    Learn how ChaCha works
   </Card>
 </CardGroup>
 
 ## Common Issues
 
 <AccordionGroup>
-  <Accordion title="Backend not running" icon="server">
-    Make sure the backend API is started:
-    ```bash
-    npm run dev -w demo-api
+  <Accordion title="Authentication errors" icon="key">
+    Verify your API key and project ID:
+    ```typescript
+    // Check environment variables are set
+    console.log('API Key:', process.env.CHACHA_API_KEY);
+    console.log('Project ID:', process.env.CHACHA_PROJECT_ID);
     ```
-    Verify it's accessible at `http://localhost:3001/health`
+    Make sure your API key is active in the ChaCha dashboard.
   </Accordion>
 
   <Accordion title="Connection errors" icon="wifi">
     Check that:
-    1. Backend is running on the correct port
-    2. `endpoint` in SDK config matches backend URL
-    3. No firewall blocking the connection
+    1. You can reach the ChaCha backend: `curl https://api.chacha.ai/health`
+    2. Your `endpoint` in SDK config is correct
+    3. No firewall blocking outbound HTTPS requests
+    4. Your API key has not expired
   </Accordion>
 
   <Accordion title="Validation errors" icon="triangle-exclamation">
@@ -356,18 +411,18 @@ const safety = new SafetyLayer({
 
 <CardGroup cols={2}>
   <Card
-    title="GitHub Issues"
+    title="GitHub Repository"
     icon="github"
-    href="https://github.com/safetylayer/safetylayer/issues"
+    href="https://github.com/conorg000/chachadotai"
   >
-    Report bugs or request features
+    View source code and report issues
   </Card>
   
   <Card
-    title="Discord Community"
-    icon="discord"
-    href="https://discord.gg/safetylayer"
+    title="Documentation"
+    icon="book"
+    href="/api-reference/safetylayer-client"
   >
-    Get help from the community
+    Explore the full SDK reference
   </Card>
 </CardGroup>

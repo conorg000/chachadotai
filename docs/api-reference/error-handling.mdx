@@ -1,11 +1,11 @@
 ---
 title: 'Error Handling'
-description: 'Error classes, retry logic, and error handling patterns'
+description: 'Error classes, retry logic, and error handling patterns for the SafetyLayer SDK'
 ---
 
 ## Error Classes
 
-The SafetyLayer SDK provides three custom error classes for different failure scenarios:
+The **SafetyLayer SDK** provides three custom error classes for different failure scenarios when communicating with the ChaCha backend:
 
 ### `SafetyLayerError`
 
@@ -97,7 +97,7 @@ try {
 
 ### Graceful Degradation
 
-Continue processing even if safety check fails:
+Continue processing even if ChaCha safety check fails:
 
 ```typescript
 async function handleMessage(sessionId: string, message: string) {
@@ -107,8 +107,8 @@ async function handleMessage(sessionId: string, message: string) {
     await safety.recordUserMessage(sessionId, message);
     riskAssessment = await safety.evaluate({ sessionId });
   } catch (error) {
-    // Log error but continue
-    console.error('SafetyLayer error:', error);
+    // Log error but continue - fail open
+    console.error('ChaCha safety check error:', error);
   }
 
   // Process message regardless
@@ -220,29 +220,31 @@ const safety = new SafetyLayer({
 
 <AccordionGroup>
   <Accordion title="Always Handle Errors" icon="shield-check">
-    Never let SafetyLayer errors crash your application. Use try-catch blocks and log errors appropriately.
+    Never let ChaCha errors crash your application. Use try-catch blocks and log errors appropriately.
   </Accordion>
 
   <Accordion title="Fail Open for Non-Critical Paths" icon="door-open">
-    If SafetyLayer is down, decide whether to block all traffic (fail closed) or continue with degraded safety (fail open).
+    If ChaCha backend is down, decide whether to block all traffic (fail closed) or continue with degraded safety (fail open). Most applications should fail open to maintain availability.
   </Accordion>
 
   <Accordion title="Log Error Details" icon="file-lines">
     Include error codes, status codes, and request IDs in logs for debugging:
     ```typescript
-    console.error('SafetyLayer error:', {
+    console.error('ChaCha error:', {
       code: error.code,
       status: error.statusCode,
       requestId: error.details?.requestId,
+      sessionId: sessionId,
     });
     ```
   </Accordion>
 
   <Accordion title="Monitor Error Rates" icon="chart-line">
     Track error rates and types to identify issues:
-    - High 401 errors → Check API keys
-    - High 429 errors → Implement backoff or increase limits
-    - High 5xx errors → Backend issues
+    - High 401 errors → Check API keys and expiration
+    - High 429 errors → Implement backoff or increase rate limits
+    - High 5xx errors → ChaCha backend issues (check status page)
+    - High timeout errors → Adjust timeout settings
   </Accordion>
 
   <Accordion title="Set Appropriate Timeouts" icon="clock">

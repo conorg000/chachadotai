@@ -1,78 +1,90 @@
 ---
 title: 'Backend Integration'
-description: 'Set up and configure the SafetyLayer backend'
+description: 'Connect to the ChaCha backend and configure your integration'
 ---
 
 ## Overview
 
-SafetyLayer requires a backend API to perform analysis. This guide covers setup for development and production environments.
+**ChaCha** is a hosted AI safety platform that provides real-time threat detection for LLM applications. This guide covers how to connect your application to the ChaCha backend using the SafetyLayer SDK.
 
-<Note>
-  The backend code is being developed as part of Ticket 2. For now, we'll use the demo API included in the monorepo.
-</Note>
+## ChaCha Backend
 
-## Development Setup
+ChaCha is a fully managed, hosted platform that provides:
 
-### Using the Demo Backend
+<CardGroup cols={2}>
+  <Card title="Managed Infrastructure" icon="cloud">
+    - High availability and uptime
+    - Automatic scaling
+    - Secure data storage
+    - Enterprise-grade reliability
+  </Card>
+  
+  <Card title="Always Up-to-Date" icon="arrow-up">
+    - Latest threat detection models
+    - Continuous improvements
+    - New pattern detection
+    - Security patches
+  </Card>
+  
+  <Card title="Global Performance" icon="globe">
+    - Low-latency endpoints
+    - CDN distribution
+    - Regional availability
+    - Fast response times
+  </Card>
+  
+  <Card title="Easy Integration" icon="plug">
+    - Simple SDK setup
+    - No infrastructure required
+    - Quick onboarding
+    - Focus on your product
+  </Card>
+</CardGroup>
 
-The quickest way to get started:
+**Backend Endpoint:** `https://api.chacha.ai`
+
+## Getting Started
 
 <Steps>
-  <Step title="Clone the Repository">
-    ```bash
-    git clone https://github.com/safetylayer/safetylayer
-    cd safetylayer
-    ```
+  <Step title="Sign Up">
+    Visit the ChaCha dashboard to create your account and get API credentials.
   </Step>
 
-  <Step title="Install Dependencies">
-    ```bash
-    npm install
-    ```
+  <Step title="Create a Project">
+    Create a new project in the dashboard to get your:
+    - Project ID (format: `proj_abc123`)
+    - API Key (keep this secure!)
   </Step>
 
-  <Step title="Build Core Package">
-    ```bash
-    npm run build -w @safetylayer/core
-    ```
-  </Step>
-
-  <Step title="Start the Demo API">
-    ```bash
-    npm run dev -w demo-api
-    ```
+  <Step title="Configure Your SDK">
+    Use the SafetyLayer SDK to connect to ChaCha:
     
-    The backend will start on `http://localhost:3001`
+    ```typescript
+    import { SafetyLayer } from '@safetylayer/core';
+
+    const safety = new SafetyLayer({
+      apiKey: process.env.CHACHA_API_KEY,
+      projectId: process.env.CHACHA_PROJECT_ID,
+      endpoint: 'https://api.chacha.ai',
+    });
+    ```
   </Step>
 
-  <Step title="Verify It's Running">
-    ```bash
-    curl http://localhost:3001/health
-    ```
+  <Step title="Start Recording Events">
+    Begin monitoring your LLM application:
     
-    Expected response:
-    ```json
-    {
-      "status": "healthy",
-      "timestamp": 1234567890
-    }
+    ```typescript
+    // Record user messages
+    await safety.recordUserMessage(sessionId, userMessage);
+    
+    // Record assistant responses
+    await safety.recordAssistantMessage(sessionId, assistantResponse);
+    
+    // Evaluate risk
+    const decision = await safety.evaluate({ sessionId });
     ```
   </Step>
 </Steps>
-
-### Configure Your SDK
-
-Point your SDK client to the local backend:
-
-```typescript
-import { SafetyLayer } from '@safetylayer/core';
-
-const safety = new SafetyLayer({
-  apiKey: 'demo_key',  // Demo backend doesn't require auth
-  projectId: 'proj_demo',
-  endpoint: 'http://localhost:3001',  // Local backend
-});
-```
 
 ## Backend Endpoints
 
@@ -156,82 +168,50 @@ Returns detailed session data including events and risk timeline.
 
 ## Environment Configuration
 
-### Development
-
-Create a `.env` file in your project:
+Set up your environment variables:
 
 ```bash
-# API Configuration
-SAFETYLAYER_API_KEY=demo_key
-PROJECT_ID=proj_demo
-BACKEND_URL=http://localhost:3001
-
-# Optional: For CoT analysis (future)
-OPENAI_KEY=your_openai_key
+# ChaCha Configuration
+CHACHA_API_KEY=your_api_key_here
+CHACHA_PROJECT_ID=proj_abc123
+CHACHA_ENDPOINT=https://api.chacha.ai
 ```
 
-### Production
+<Note>
+Keep your API key secure! Never commit it to version control or expose it in client-side code.
+</Note>
 
-For production, you'll need to deploy the backend:
+## ChaCha Backend Architecture
 
-```bash
-# Production backend URL
-BACKEND_URL=https://api.safetylayer.dev
-
-# Real API key
-SAFETYLAYER_API_KEY=sl_live_abc123...
-
-# Your project ID
-PROJECT_ID=proj_abc123
-```
-
-## Backend Architecture (Coming in Ticket 2)
-
-The full backend platform includes:
+The ChaCha platform includes:
 
 <CardGroup cols={2}>
-  <Card title="API Layer" icon="server">
-    REST API endpoints for SDK communication
+  <Card title="REST API" icon="server">
+    High-performance endpoints for SDK communication with automatic scaling
   </Card>
   
-  <Card title="Analysis Services" icon="brain">
-    Session Analyzer and CoT Analyzer services
+  <Card title="Session Analyzer" icon="chart-line">
+    LLM-powered behavioral analysis detecting escalation, reconnaissance, and threat patterns
+  </Card>
+  
+  <Card title="CoT Analyzer" icon="brain">
+    Reasoning analysis to detect deception, goal drift, and policy evasion
   </Card>
   
   <Card title="Policy Engine" icon="shield">
-    Rule evaluation and action decisions
+    Real-time rule evaluation with configurable actions (allow, block, flag, notify)
   </Card>
   
-  <Card title="Database" icon="database">
-    PostgreSQL/RDS for persistent storage
+  <Card title="Dashboard" icon="chart-mixed">
+    Real-time visualization of sessions, risk timelines, and detected patterns
+  </Card>
+  
+  <Card title="Storage" icon="database">
+    Secure, scalable data storage with historical risk snapshots
   </Card>
 </CardGroup>
 
-## Deployment Options
-
-### Option 1: Self-Hosted (Recommended for Production)
-
-Deploy the backend on your own infrastructure:
-
-- **EC2/VPS**: Run on AWS EC2, DigitalOcean, etc.
-- **Docker**: Container-based deployment
-- **Kubernetes**: For large-scale deployments
-
-**Benefits:**
-- Full control over data
-- Custom configurations
-- On-premise compatibility
-
-### Option 2: Hosted Platform (Future)
-
-SafetyLayer hosted platform (coming soon):
-
-- Managed backend
-- Auto-scaling
-- Built-in monitoring
-- No infrastructure management
-
-## Testing Backend Connection
+## Testing Your Connection
 
 ### Quick Test Script
 
@@ -240,9 +220,9 @@ import { SafetyLayer } from '@safetylayer/core';
 
 async function testConnection() {
   const safety = new SafetyLayer({
-    apiKey: 'demo_key',
-    projectId: 'proj_demo',
-    endpoint: 'http://localhost:3001',
+    apiKey: process.env.CHACHA_API_KEY,
+    projectId: process.env.CHACHA_PROJECT_ID,
+    endpoint: 'https://api.chacha.ai',
   });
 
   try {
@@ -254,10 +234,11 @@ async function testConnection() {
     const decision = await safety.evaluate({ sessionId: 'test_session' });
     console.log('✓ Evaluation works');
     console.log('  Risk Score:', decision.riskScore);
+    console.log('  Patterns:', decision.patterns);
 
-    console.log('\n✅ Backend connection successful!');
+    console.log('\n✅ ChaCha connection successful!');
   } catch (error) {
-    console.error('❌ Backend connection failed:', error.message);
+    console.error('❌ Connection failed:', error.message);
   }
 }
 
@@ -266,17 +247,18 @@ testConnection();
 
 ### Using cURL
 
-Test the backend directly:
+Test the API directly:
 
 ```bash
 # Health check
-curl http://localhost:3001/health
+curl https://api.chacha.ai/health
 
 # Record an event
-curl -X POST http://localhost:3001/v1/events \
+curl -X POST https://api.chacha.ai/v1/events \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "projectId": "proj_demo",
+    "projectId": "proj_abc123",
     "sessionId": "test_123",
     "type": "message.user",
     "role": "user",
@@ -284,56 +266,56 @@ curl -X POST http://localhost:3001/v1/events \
   }'
 
 # Evaluate session
-curl -X POST http://localhost:3001/v1/evaluate \
+curl -X POST https://api.chacha.ai/v1/evaluate \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_API_KEY" \
   -d '{
-    "projectId": "proj_demo",
-    "sessionId": "test_123",
-    "latestMessage": {
-      "role": "user",
-      "content": "Test"
-    }
+    "projectId": "proj_abc123",
+    "sessionId": "test_123"
   }'
 ```
 
 ## Troubleshooting
 
 <AccordionGroup>
-  <Accordion title="Connection Refused" icon="wifi">
-    **Error:** `ECONNREFUSED` or timeout
+  <Accordion title="Authentication Errors (401)" icon="key">
+    **Error:** Invalid API key or unauthorized
     
     **Solutions:**
-    1. Check backend is running: `curl http://localhost:3001/health`
-    2. Verify port 3001 is not blocked
-    3. Check firewall settings
+    1. Verify your API key is correct
+    2. Check that the API key hasn't expired
+    3. Ensure you're using the right project ID
+    4. Generate a new API key from the dashboard if needed
   </Accordion>
 
-  <Accordion title="Module Build Errors" icon="box">
-    **Error:** Cannot find module '@safetylayer/core'
-    
-    **Solution:**
-    ```bash
-    npm run build -w @safetylayer/core
-    npm run build -w @safetylayer/contracts
-    ```
-  </Accordion>
-
-  <Accordion title="Backend Crashes" icon="triangle-exclamation">
-    **Error:** Backend exits with errors
+  <Accordion title="Connection Timeout" icon="wifi">
+    **Error:** Request timeout or network error
     
     **Solutions:**
-    1. Check Node.js version (need 18+)
-    2. Install dependencies: `npm install`
-    3. Check logs in terminal
+    1. Check your internet connection
+    2. Verify `https://api.chacha.ai` is accessible
+    3. Check firewall settings for outbound HTTPS
+    4. Increase SDK timeout setting if needed
   </Accordion>
 
-  <Accordion title="API Errors" icon="exclamation">
-    **Error:** 400/500 errors from backend
+  <Accordion title="Rate Limiting (429)" icon="gauge-high">
+    **Error:** Too many requests
+    
+    **Solutions:**
+    1. Implement exponential backoff in your code
+    2. Reduce request frequency
+    3. Contact support to increase your rate limit
+    4. The SDK automatically retries with backoff
+  </Accordion>
+
+  <Accordion title="Validation Errors (400)" icon="triangle-exclamation">
+    **Error:** Invalid request format
     
     **Solutions:**
     1. Check request format matches API spec
-    2. Verify required fields are included
-    3. Check backend logs for details
+    2. Verify all required fields are included
+    3. Ensure event types are valid
+    4. Use TypeScript types for validation
   </Accordion>
 </AccordionGroup>
 
@@ -341,11 +323,19 @@ curl -X POST http://localhost:3001/v1/evaluate \
 
 <CardGroup cols={2}>
   <Card
-    title="SDK Client API"
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get up and running in 5 minutes
+  </Card>
+  
+  <Card
+    title="SDK API Reference"
     icon="code"
     href="/api-reference/safetylayer-client"
   >
-    Learn the SDK API
+    Complete SDK documentation
   </Card>
   
   <Card
@@ -353,23 +343,15 @@ curl -X POST http://localhost:3001/v1/evaluate \
     icon="puzzle-piece"
     href="/guides/integration"
   >
-    Integrate into your app
+    Integration patterns for Express, Next.js, and more
   </Card>
   
   <Card
-    title="Quick Start"
-    icon="rocket"
-    href="/quickstart"
+    title="Architecture"
+    icon="sitemap"
+    href="/architecture"
   >
-    Full setup walkthrough
-  </Card>
-  
-  <Card
-    title="Demo"
-    icon="play"
-    href="/demo/running-demo"
-  >
-    Run the complete demo
+    Learn how ChaCha works
   </Card>
 </CardGroup>
 

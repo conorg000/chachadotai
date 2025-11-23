@@ -1,6 +1,6 @@
 {
   "$schema": "https://mintlify.com/schema.json",
-  "name": "SafetyLayer",
+  "name": "ChaCha",
   "logo": {
     "dark": "/logo/dark.svg",
     "light": "/logo/light.svg"
@@ -17,13 +17,13 @@
   },
   "topbarLinks": [
     {
-      "name": "Support",
-      "url": "mailto:support@safetylayer.ai"
+      "name": "GitHub",
+      "url": "https://github.com/conorg000/chachadotai"
     }
   ],
   "topbarCtaButton": {
-    "name": "Dashboard",
-    "url": "https://safetylayer.ai"
+    "name": "GitHub",
+    "url": "https://github.com/conorg000/chachadotai"
   },
   "tabs": [
     {
@@ -37,14 +37,9 @@
   ],
   "anchors": [
     {
-      "name": "Demo",
-      "icon": "play",
-      "url": "demo"
-    },
-    {
       "name": "GitHub",
       "icon": "github",
-      "url": "https://github.com/safetylayer/safetylayer"
+      "url": "https://github.com/conorg000/chachadotai"
     }
   ],
   "navigation": [
@@ -53,7 +48,7 @@
       "pages": ["introduction", "quickstart", "architecture"]
     },
     {
-      "group": "SDK Reference",
+      "group": "SafetyLayer SDK Reference",
       "pages": [
         "api-reference/safetylayer-client",
         "api-reference/error-handling",
@@ -67,14 +62,9 @@
         "guides/backend-integration",
         "guides/testing"
       ]
-    },
-    {
-      "group": "Demo & Examples",
-      "pages": ["demo/running-demo", "demo/api-endpoints", "demo/dashboard"]
     }
   ],
   "footerSocials": {
-    "github": "https://github.com/safetylayer/safetylayer",
-    "linkedin": "https://www.linkedin.com/company/safetylayer"
+    "github": "https://github.com/conorg000/chachadotai"
   }
 }

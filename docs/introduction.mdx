@@ -1,54 +1,58 @@
 ---
 title: Introduction
-description: 'AI safety monitoring made simple with behavioral analysis and chain-of-thought monitoring via our SDK and backend platform'
+description: 'AI safety monitoring made simple with behavioral analysis and chain-of-thought monitoring via the SafetyLayer SDK and ChaCha backend platform'
 ---
 
 <img
   className="block dark:hidden"
   src="/images/hero-light.svg"
-  alt="SafetyLayer Hero Light"
+  alt="ChaCha Hero Light"
 />
 <img
   className="hidden dark:block"
   src="/images/hero-dark.svg"
-  alt="SafetyLayer Hero Dark"
+  alt="ChaCha Hero Dark"
 />
 
-## Welcome to SafetyLayer
+## Welcome to ChaCha
 
-SafetyLayer is a **control plane for AI safety** that provides real-time risk analysis for LLM applications through a lightweight SDK and powerful backend platform. Unlike traditional content filters, SafetyLayer operates on two complementary planes to detect subtle security threats.
+**ChaCha** is a **control plane for AI safety** that provides real-time risk analysis for LLM applications. Unlike traditional content filters, ChaCha operates on two complementary planes to detect subtle security threats through behavioral analysis and chain-of-thought monitoring.
 
-<Card title="Why SafetyLayer?" icon="shield-check" iconType="duotone">
-  Traditional AI safety tools focus on input/output filtering. SafetyLayer goes deeper by analyzing **conversation patterns** and **reasoning processes** to catch threats that bypass simple filters.
+You integrate ChaCha into your application using the **SafetyLayer SDK** — a lightweight, open-source client library that sends events to the ChaCha backend for analysis.
+
+<Card title="Why ChaCha?" icon="shield-check" iconType="duotone">
+  Traditional AI safety tools focus on input/output filtering. ChaCha goes deeper by analyzing **conversation patterns** and **reasoning processes** to catch threats that bypass simple filters.
 </Card>
 
-## Architecture: SDK + Control Plane
+## Architecture: SafetyLayer SDK + ChaCha Backend
 
-SafetyLayer uses a modern client-server architecture:
+ChaCha uses a modern client-server architecture:
 
 <CardGroup cols={2}>
-  <Card title="Lightweight SDK" icon="code" iconType="duotone">
-    **Thin Client Integration**
+  <Card title="SafetyLayer SDK" icon="code" iconType="duotone">
+    **Lightweight Client Library**
     
-    - Simple npm package
+    - Simple npm package (`@safetylayer/core`)
     - Record events with one line of code
     - Automatic retry and error handling
     - Type-safe with TypeScript
+    - Open source
   </Card>
   
-  <Card title="Backend Platform" icon="server" iconType="duotone">
-    **Centralized Analysis**
+  <Card title="ChaCha Backend" icon="server" iconType="duotone">
+    **Centralized Analysis Platform**
     
     - Session-aware behavioral analysis
     - Chain-of-thought monitoring
     - Pattern detection
-    - Risk scoring and policies
+    - Risk scoring and policy engine
+    - Real-time dashboard
   </Card>
 </CardGroup>
 
 ## The Two-Plane Analysis
 
-SafetyLayer's backend performs dual-plane monitoring:
+ChaCha's backend performs dual-plane monitoring:
 
 <CardGroup cols={2}>
   <Card title="Behavioral Plane" icon="chart-line" iconType="duotone">
@@ -76,7 +80,7 @@ SafetyLayer's backend performs dual-plane monitoring:
 
 <AccordionGroup>
   <Accordion title="Simple SDK Integration" icon="plug">
-    Install the SDK and start recording events with minimal code changes. Just a few lines to add SafetyLayer to your app.
+    Install the SafetyLayer SDK and start recording events with minimal code changes. Just a few lines to integrate ChaCha into your app.
   </Accordion>
 
   <Accordion title="Real-Time Risk Scoring" icon="gauge-high">
@@ -106,15 +110,15 @@ SafetyLayer's backend performs dual-plane monitoring:
 
 ## Quick Example
 
-Here's how simple it is to add SafetyLayer to your LLM application:
+Here's how simple it is to integrate ChaCha using the SafetyLayer SDK:
 
 ```typescript
 import { SafetyLayer } from '@safetylayer/core';
 
 const safety = new SafetyLayer({
-  apiKey: process.env.SAFETYLAYER_API_KEY,
+  apiKey: process.env.CHACHA_API_KEY,
   projectId: 'proj_abc123',
-  endpoint: 'http://localhost:3001', // or your hosted backend
+  endpoint: 'https://api.chacha.ai', // ChaCha backend
 });
 
 // Record user message
@@ -168,7 +172,7 @@ console.log(`Patterns: ${decision.patterns.join(', ')}`);
 ```mermaid
 graph TB
     A[Your LLM Application] --> B[SafetyLayer SDK]
-    B --> C[Backend API]
+    B --> C[ChaCha Backend API]
     
     C --> D[Session Analyzer]
     C --> E[CoT Analyzer]
@@ -182,7 +186,7 @@ graph TB
     
     F --> K[Actions: Block/Flag/Alert]
     
-    C --> L[(RDS Database)]
+    C --> L[(Database)]
     L --> M[Sessions]
     L --> N[Events]
     L --> O[Risk Snapshots]
@@ -215,22 +219,22 @@ Ready to add SafetyLayer to your application?
     Explore the SDK API
   </Card>
   <Card
-    title="Run the Demo"
-    icon="play"
-    href="/demo/running-demo"
+    title="ChaCha Dashboard"
+    icon="chart-line"
+    href="/architecture#chacha-dashboard"
   >
-    See it in action
+    Explore the monitoring dashboard
   </Card>
 </CardGroup>
 
 ## Open Source
 
-SafetyLayer is open source and built for the AI safety community. Contributions, feedback, and feature requests are welcome!
+The SafetyLayer SDK is open source and built for the AI safety community. Contributions, feedback, and feature requests are welcome!
 
 <Card
   title="View on GitHub"
   icon="github"
-  href="https://github.com/safetylayer/safetylayer"
+  href="https://github.com/conorg000/chachadotai"
 >
   Star us on GitHub and contribute to AI safety
 </Card>

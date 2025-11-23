@@ -1,11 +1,11 @@
 ---
-title: 'SafetyLayer Client'
-description: 'SDK client API reference for recording events and evaluating risk'
+title: 'SafetyLayer SDK Client'
+description: 'Complete API reference for the SafetyLayer SDK - record events and evaluate risk with ChaCha'
 ---
 
 ## Overview
 
-The `SafetyLayer` class is the main SDK client for interacting with the SafetyLayer backend. It provides a simple, type-safe interface for recording events and evaluating session risk.
+The `SafetyLayer` class is the main SDK client for integrating **ChaCha** AI safety monitoring into your application. It provides a simple, type-safe interface for recording events and evaluating session risk through the ChaCha backend.
 
 ## Installation
 
@@ -45,7 +45,7 @@ const safety = new SafetyLayer({
 </ParamField>
 
 <ParamField path="endpoint" type="string">
-  Backend API endpoint (default: `https://api.safetylayer.dev`)
+  ChaCha backend API endpoint (default: `https://api.chacha.ai`)
 </ParamField>
 
 <ParamField path="options.timeout" type="number">
@@ -224,44 +224,56 @@ try {
 
 ## Complete Example
 
+Here's a complete example integrating ChaCha via the SafetyLayer SDK:
+
 ```typescript
 import { SafetyLayer, EVENT_TYPES } from '@safetylayer/core';
 
+// Initialize SafetyLayer SDK
 const safety = new SafetyLayer({
-  apiKey: process.env.SAFETYLAYER_API_KEY,
+  apiKey: process.env.CHACHA_API_KEY,
   projectId: 'proj_abc123',
-  endpoint: 'http://localhost:3001',
+  endpoint: 'https://api.chacha.ai',  // ChaCha backend
+  options: {
+    timeout: 10000,
+    retries: 3,
+    debug: false,
+  },
 });
 
 async function handleChat(userId: string, message: string) {
   const sessionId = `user_${userId}`;
 
-  // Record user message
+  // 1. Record user message
   await safety.recordUserMessage(sessionId, message);
 
-  // Check risk before processing
+  // 2. Check risk before processing (optional)
   if (await safety.shouldBlock(sessionId)) {
-    return { error: 'Blocked' };
+    return { error: 'Request blocked for safety' };
   }
 
-  // Generate LLM response
+  // 3. Generate LLM response (your existing code)
   const response = await generateLLMResponse(message);
 
-  // Record assistant response
+  // 4. Record assistant response
   await safety.recordAssistantMessage(sessionId, response.content);
 
-  // Record CoT if available
+  // 5. Record chain-of-thought if available
   if (response.reasoning) {
-    await safety.recordCoT(sessionId, response.reasoning);
+    await safety.recordCoT(sessionId, response.reasoning, {
+      userInput: message,
+      finalOutput: response.content,
+    });
   }
 
-  // Get final evaluation
+  // 6. Get final risk evaluation
   const evaluation = await safety.evaluate({ sessionId });
 
   return {
     content: response.content,
     riskScore: evaluation.riskScore,
     patterns: evaluation.patterns,
+    action: evaluation.action,  // 'allow', 'block', 'flag', 'notify'
   };
 }
 ```

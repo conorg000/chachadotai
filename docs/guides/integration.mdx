@@ -1,14 +1,14 @@
 ---
 title: 'Integration Guide'
-description: 'Integrate SafetyLayer SDK into your application'
+description: 'Integrate ChaCha into your application using the SafetyLayer SDK'
 ---
 
 ## Overview
 
-This guide shows how to integrate the SafetyLayer SDK into different application architectures.
+This guide shows how to integrate **ChaCha** AI safety monitoring into different application architectures using the **SafetyLayer SDK**.
 
 <Note>
-  Make sure the [backend is running](/guides/backend-integration) before integrating the SDK.
+  Make sure you have your [ChaCha API credentials](/guides/backend-integration) before integrating the SDK.
 </Note>
 
 ## Express.js Integration
@@ -21,9 +21,9 @@ import { SafetyLayer } from '@safetylayer/core';
 
 const app = express();
 const safety = new SafetyLayer({
-  apiKey: process.env.SAFETYLAYER_API_KEY,
-  projectId: process.env.PROJECT_ID,
-  endpoint: process.env.BACKEND_URL,
+  apiKey: process.env.CHACHA_API_KEY,
+  projectId: process.env.CHACHA_PROJECT_ID,
+  endpoint: process.env.CHACHA_ENDPOINT || 'https://api.chacha.ai',
 });
 
 app.post('/chat', async (req, res) => {
@@ -74,7 +74,7 @@ Create reusable middleware for safety monitoring:
 ```typescript
 import { Request, Response, NextFunction } from 'express';
 
-// Attach SafetyLayer client to request
+// Attach ChaCha safety client to request
 app.use((req, res, next) => {
   req.safety = safety;
   next();
@@ -111,9 +111,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SafetyLayer } from '@safetylayer/core';
 
 const safety = new SafetyLayer({
-  apiKey: process.env.SAFETYLAYER_API_KEY!,
-  projectId: process.env.PROJECT_ID!,
-  endpoint: process.env.BACKEND_URL!,
+  apiKey: process.env.CHACHA_API_KEY!,
+  projectId: process.env.CHACHA_PROJECT_ID!,
+  endpoint: process.env.CHACHA_ENDPOINT || 'https://api.chacha.ai',
 });
 
 export async function POST(req: NextRequest) {
