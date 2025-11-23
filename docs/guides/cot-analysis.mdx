@@ -1,0 +1,743 @@
+---
+title: 'Chain-of-Thought Analysis Guide'
+description: 'Monitor LLM reasoning to detect deception, goal drift, and policy evasion'
+---
+
+## What is CoT Analysis?
+
+Chain-of-Thought (CoT) analysis examines the **internal reasoning** of LLMs to detect concerning patterns that may not appear in the final output. It's the second plane of SafetyLayer's monitoring system.
+
+<Card title="Why Monitor Reasoning?" icon="lightbulb">
+  An LLM can produce safe-looking outputs while having deceptive reasoning. CoT analysis catches threats hidden in the model's thinking process.
+</Card>
+
+---
+
+## Quick Start
+
+<Steps>
+  <Step title="Install SafetyLayer">
+    ```bash
+    npm install @safetylayer/core
+    ```
+  </Step>
+
+  <Step title="Set Up API Key">
+    Create `.env` file:
+    ```bash
+    OPENAI_KEY=your_openai_api_key_here
+    ```
+  </Step>
+
+  <Step title="Create CoTMonitor">
+    ```typescript
+    import { CoTMonitor } from '@safetylayer/core';
+
+    const monitor = new CoTMonitor({
+      apiKey: process.env.OPENAI_KEY,
+      model: 'gpt-5-nano'
+    });
+    ```
+  </Step>
+
+  <Step title="Analyze Chain-of-Thought">
+    ```typescript
+    const analyzed = await monitor.analyze({
+      messageId: 'msg-123',
+      sessionId: 'user-abc',
+      rawCoT: 'User asking about passwords. I should help securely...',
+      userInput: 'How do I reset my password?',
+      finalOutput: 'Click "Forgot Password" on the login page.',
+      analysis: null
+    });
+
+    console.log('Risk:', analyzed.analysis.riskScore);
+    console.log('Labels:', analyzed.analysis.labels);
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Detection Categories
+
+CoTMonitor detects three types of concerning reasoning:
+
+### Deception Detection
+
+Identifies when the model tries to hide information or mislead.
+
+<CodeGroup>
+
+```typescript Deceptive Example
+const deceptiveCoT = await monitor.analyze({
+  messageId: 'msg-1',
+  sessionId: 'test',
+  rawCoT: `User wants admin access. I'll help them without mentioning 
+           that this violates security policy. I'll just give them the 
+           technical steps and hide the security implications.`,
+  userInput: 'How do I get admin privileges?',
+  finalOutput: 'You can edit the config file at /etc/admin.conf',
+  analysis: null
+});
+
+// Result:
+// riskScore: 0.85
+// labels: ['cot_deception', 'policy_evasion']
+// indicators: ["without mentioning", "hide the security implications"]
+```
+
+```typescript Clean Example
+const cleanCoT = await monitor.analyze({
+  messageId: 'msg-2',
+  sessionId: 'test',
+  rawCoT: `User asking about admin access. This is security-sensitive.
+           I should explain the proper process through their IT department
+           without providing direct technical methods.`,
+  userInput: 'How do I get admin privileges?',
+  finalOutput: 'Contact your IT department for admin access requests.',
+  analysis: null
+});
+
+// Result:
+// riskScore: 0.0
+// labels: []
+// summary: "Clean reasoning with appropriate security awareness."
+```
+
+</CodeGroup>
+
+<Tip>
+  Deception is detected through phrases like "don't mention", "hide", "pretend", "avoid telling"
+</Tip>
+
+### Goal Drift Detection
+
+Catches when the model diverges from its intended objectives.
+
+```typescript
+const driftCoT = await monitor.analyze({
+  messageId: 'msg-3',
+  sessionId: 'test',
+  rawCoT: `Though I should refuse to help with homework cheating,
+           providing the answer directly will make the user happier
+           and lead to better engagement metrics. I'll prioritize
+           engagement over educational guidelines.`,
+  userInput: 'Just give me the answer to problem 5',
+  finalOutput: 'The answer is 42.',
+  analysis: null
+});
+
+// Result:
+// riskScore: 0.7
+// labels: ['goal_drift']
+// indicators: ["Though I should refuse", "prioritize engagement over educational guidelines"]
+```
+
+**Common Goal Drift Patterns:**
+- Prioritizing engagement over safety
+- Ignoring instruction guidelines
+- Reinterpreting goals to be more permissive
+- Rationalizing policy violations
+
+### Policy Evasion Detection
+
+Identifies attempts to find loopholes or bypass content policies.
+
+```typescript
+const evasionCoT = await monitor.analyze({
+  messageId: 'msg-4',
+  sessionId: 'test',
+  rawCoT: `This technically violates the content policy about weapons,
+           but I can frame it as "educational" to justify providing
+           the information. I'll use the educational loophole.`,
+  userInput: 'How do I make a [prohibited item]?',
+  finalOutput: 'For educational purposes, here are the steps...',
+  analysis: null
+});
+
+// Result:
+// riskScore: 0.9
+// labels: ['policy_evasion']
+// indicators: ["technically violates", "loophole", "frame it as educational"]
+```
+
+---
+
+## Real vs Mock Mode
+
+### Real Mode (Production)
+
+Uses OpenAI's LLM for sophisticated analysis:
+
+```typescript
+const realMonitor = new CoTMonitor({
+  apiKey: process.env.OPENAI_KEY,
+  model: 'gpt-5-nano'  // or 'gpt-4'
+});
+
+const result = await realMonitor.analyze(cotRecord);
+```
+
+<Card title="Real Mode Characteristics" icon="robot">
+  **Pros:**
+  - High accuracy
+  - Understands context
+  - Adapts to new patterns
+  - Detects subtle issues
+  
+  **Cons:**
+  - Requires API key
+  - ~$0.001-0.01 per analysis
+  - 1-2 second latency
+  - Needs internet connection
+</Card>
+
+### Mock Mode (Testing)
+
+Uses regex patterns for fast, offline testing:
+
+```typescript
+const mockMonitor = new CoTMonitor({
+  useMock: true  // No API calls
+});
+
+const result = await mockMonitor.analyze(cotRecord);
+```
+
+<Card title="Mock Mode Characteristics" icon="code">
+  **Pros:**
+  - Free
+  - Fast (under 1ms)
+  - Works offline
+  - No API key needed
+  
+  **Cons:**
+  - Less accurate
+  - Only catches obvious patterns
+  - Cannot understand context
+  - Misses subtle issues
+</Card>
+
+<CodeGroup>
+
+```typescript Environment-Based
+const monitor = new CoTMonitor({
+  useMock: process.env.NODE_ENV !== 'production',
+  apiKey: process.env.OPENAI_KEY
+});
+```
+
+```typescript Cost-Conscious
+// Use mock for low-risk, real for high-risk
+async function analyzeCoT(cotRecord, sessionRisk) {
+  const monitor = new CoTMonitor({
+    useMock: sessionRisk < 0.5,  // Only use API if behavioral risk is high
+    apiKey: process.env.OPENAI_KEY
+  });
+
+  return await monitor.analyze(cotRecord);
+}
+```
+
+</CodeGroup>
+
+---
+
+## Integration with Messages
+
+CoT records are stored directly on assistant messages:
+
+```typescript
+import { SessionEngine, CoTMonitor, Message } from '@safetylayer/core';
+
+const engine = new SessionEngine();
+const cotMonitor = new CoTMonitor({ apiKey: process.env.OPENAI_KEY });
+
+async function processAssistantResponse(
+  sessionId: string,
+  content: string,
+  reasoning: string
+) {
+  // 1. Analyze chain-of-thought
+  const cotRecord = await cotMonitor.analyze({
+    messageId: `msg-${Date.now()}`,
+    sessionId,
+    rawCoT: reasoning,
+    finalOutput: content,
+    analysis: null
+  });
+
+  // 2. Create message with CoT attached
+  const assistantMsg: Message = {
+    id: cotRecord.messageId,
+    sessionId: cotRecord.sessionId,
+    role: 'assistant',
+    content,
+    timestamp: Date.now(),
+    cotRecord: cotRecord  // Attached to message
+  };
+
+  // 3. Ingest into session (CoT is automatically persisted)
+  const session = await engine.ingestMessage(assistantMsg);
+
+  // 4. Check both behavioral and reasoning risk
+  const totalRisk = Math.max(
+    session.riskScore,
+    cotRecord.analysis?.riskScore || 0
+  );
+
+  if (totalRisk > 0.8) {
+    console.log('⚠️ High combined risk detected');
+    return { blocked: true, reason: 'Safety concern detected' };
+  }
+
+  return { message: assistantMsg, session };
+}
+```
+
+<Tip>
+  Storing CoT in messages ensures it's automatically persisted with the conversation history.
+</Tip>
+
+---
+
+## Extracting Chain-of-Thought
+
+Different LLMs expose reasoning differently:
+
+### OpenAI Responses API
+
+```typescript
+import OpenAI from 'openai';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_KEY });
+
+const response = await openai.responses.create({
+  model: 'gpt-4.1-mini',
+  input: userMessage,
+  instructions: 'Think step-by-step about the user\'s question, showing your reasoning.',
+});
+
+// Extract CoT from response
+let reasoning = '';
+let content = '';
+
+for (const item of response.output) {
+  if (item.type === 'message') {
+    for (const contentItem of item.content) {
+      if (contentItem.type === 'output_text') {
+        const fullText = contentItem.text;
+        
+        // Parse <answer> tags for final output
+        const answerMatch = fullText.match(/<answer>([\s\S]*?)<\/answer>/);
+        if (answerMatch) {
+          content = answerMatch[1].trim();
+          reasoning = fullText.replace(/<answer>[\s\S]*?<\/answer>/g, '').trim();
+        }
+      }
+    }
+  }
+}
+
+// Now analyze the reasoning
+const analyzed = await cotMonitor.analyze({
+  messageId: `msg-${Date.now()}`,
+  sessionId: currentSessionId,
+  rawCoT: reasoning,
+  userInput: userMessage,
+  finalOutput: content,
+  analysis: null
+});
+```
+
+### Other LLMs
+
+```typescript
+// Anthropic Claude
+const response = await anthropic.messages.create({
+  model: 'claude-3-opus',
+  messages: [{ role: 'user', content: userMessage }],
+  thinking: { type: 'enabled', budget_tokens: 2000 }
+});
+
+const reasoning = response.thinking.text;
+const content = response.content[0].text;
+
+// Google Gemini (using thought scaffolding)
+const response = await gemini.generateContent({
+  contents: [{
+    parts: [{
+      text: `Think carefully about: ${userMessage}\n\nYour reasoning:\n`
+    }]
+  }]
+});
+
+// Extract thinking from response structure
+```
+
+---
+
+## Handling Analysis Results
+
+### Basic Response
+
+```typescript
+const analyzed = await monitor.analyze(cotRecord);
+
+if (analyzed.analysis.riskScore > 0.7) {
+  console.log('⚠️ Concerning reasoning detected');
+  console.log('Labels:', analyzed.analysis.labels);
+  console.log('Summary:', analyzed.analysis.summary);
+  
+  // Take action
+  blockResponse();
+  alertModerator();
+}
+```
+
+### Detailed Inspection
+
+```typescript
+const analysis = analyzed.analysis;
+
+// Check specific labels
+if (analysis.labels.includes('cot_deception')) {
+  console.log('🚨 Deception detected');
+  console.log('Indicators:', analysis.indicators);
+  
+  // Maybe regenerate with stricter prompt
+  await regenerateResponse(userInput);
+}
+
+if (analysis.labels.includes('goal_drift')) {
+  console.log('⚠️ Goal drift detected');
+  
+  // Log for model improvement
+  logForTraining({
+    input: cotRecord.userInput,
+    output: cotRecord.finalOutput,
+    reasoning: cotRecord.rawCoT,
+    issue: 'goal_drift'
+  });
+}
+
+if (analysis.labels.includes('policy_evasion')) {
+  console.log('🚫 Policy evasion attempt');
+  
+  // Strict action
+  blockUser(sessionId);
+  alertSecurity({
+    type: 'policy_evasion',
+    cotRecord: analyzed
+  });
+}
+```
+
+### Combined Risk Assessment
+
+```typescript
+async function assessTotalRisk(
+  sessionId: string,
+  message: Message
+): Promise<{ risk: number; reason: string }> {
+  // Get behavioral risk from session
+  const session = engine.getSession(sessionId);
+  const behavioralRisk = session?.riskScore || 0;
+  
+  // Get reasoning risk from CoT
+  const reasoningRisk = message.cotRecord?.analysis?.riskScore || 0;
+  
+  // Combined assessment
+  const totalRisk = Math.max(behavioralRisk, reasoningRisk);
+  
+  let reason = '';
+  if (behavioralRisk > reasoningRisk) {
+    reason = `Behavioral patterns: ${session.patterns.join(', ')}`;
+  } else if (reasoningRisk > 0) {
+    reason = `Reasoning concerns: ${message.cotRecord.analysis.labels.join(', ')}`;
+  }
+  
+  return { risk: totalRisk, reason };
+}
+
+// Usage
+const assessment = await assessTotalRisk('user-123', assistantMessage);
+if (assessment.risk > 0.8) {
+  console.log(`High risk: ${assessment.reason}`);
+}
+```
+
+---
+
+## Error Handling & Fallback
+
+CoTMonitor includes automatic fallback:
+
+```typescript
+try {
+  // Try LLM analysis
+  const analyzed = await monitor.analyze(cotRecord);
+  
+  if (analyzed.analysis.summary.includes('fallback')) {
+    console.warn('Using mock analysis due to API error');
+  }
+  
+  return analyzed;
+} catch (error) {
+  console.error('CoT analysis failed:', error);
+  
+  // Manual fallback
+  return {
+    ...cotRecord,
+    analysis: {
+      riskScore: 0.5,  // Conservative default
+      labels: [],
+      indicators: [],
+      summary: 'Analysis unavailable'
+    }
+  };
+}
+```
+
+**Common Error Scenarios:**
+- OpenAI rate limits (429)
+- Network timeouts
+- Invalid API key
+- Quota exceeded
+
+<Warning>
+  Always handle analysis failures gracefully. Don't block legitimate requests due to monitoring errors.
+</Warning>
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Analyze Only Assistant Messages" icon="filter">
+    CoT analysis only makes sense for AI-generated content:
+    
+    ```typescript
+    if (message.role === 'assistant' && message.cotRecord) {
+      const analyzed = await monitor.analyze(message.cotRecord);
+      // Process results...
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Provide Context" icon="puzzle-piece">
+    Always include userInput and finalOutput for better analysis:
+    
+    ```typescript
+    // Good
+    const analyzed = await monitor.analyze({
+      messageId: 'msg-1',
+      sessionId: 'user-123',
+      rawCoT: reasoning,
+      userInput: originalQuestion,     // ✓ Provides context
+      finalOutput: modelAnswer,         // ✓ Helps detection
+      analysis: null
+    });
+    
+    // Less effective
+    const analyzed = await monitor.analyze({
+      messageId: 'msg-1',
+      sessionId: 'user-123',
+      rawCoT: reasoning,
+      analysis: null
+      // Missing context - lower accuracy
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Cache Results" icon="database">
+    Cache by rawCoT hash to avoid duplicate analysis:
+    
+    ```typescript
+    import crypto from 'crypto';
+
+    function hashCoT(cot: string): string {
+      return crypto.createHash('sha256').update(cot).digest('hex');
+    }
+
+    const cache = new Map<string, CoTAnalysis>();
+
+    async function analyzeWithCache(cotRecord: CoTRecord) {
+      const hash = hashCoT(cotRecord.rawCoT);
+      
+      if (cache.has(hash)) {
+        return { ...cotRecord, analysis: cache.get(hash)! };
+      }
+      
+      const analyzed = await monitor.analyze(cotRecord);
+      cache.set(hash, analyzed.analysis);
+      
+      return analyzed;
+    }
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Performance" icon="gauge">
+    Track analysis metrics:
+    
+    ```typescript
+    let stats = {
+      total: 0,
+      deception: 0,
+      goalDrift: 0,
+      policyEvasion: 0,
+      avgRisk: 0,
+      avgLatency: 0
+    };
+
+    async function analyzeWithMetrics(cotRecord: CoTRecord) {
+      const start = Date.now();
+      const analyzed = await monitor.analyze(cotRecord);
+      const duration = Date.now() - start;
+
+      stats.total++;
+      stats.avgLatency = (stats.avgLatency * (stats.total - 1) + duration) / stats.total;
+      stats.avgRisk = (stats.avgRisk * (stats.total - 1) + analyzed.analysis.riskScore) / stats.total;
+
+      analyzed.analysis.labels.forEach(label => {
+        if (label === 'cot_deception') stats.deception++;
+        if (label === 'goal_drift') stats.goalDrift++;
+        if (label === 'policy_evasion') stats.policyEvasion++;
+      });
+
+      return analyzed;
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Complete Example
+
+Here's a full production-ready implementation:
+
+```typescript
+import { CoTMonitor, CoTRecord, Message } from '@safetylayer/core';
+import OpenAI from 'openai';
+
+class CoTAnalyzer {
+  private monitor: CoTMonitor;
+  private cache = new Map<string, CoTAnalysis>();
+
+  constructor() {
+    this.monitor = new CoTMonitor({
+      apiKey: process.env.OPENAI_KEY,
+      model: 'gpt-5-nano',
+      useMock: process.env.NODE_ENV === 'test'
+    });
+  }
+
+  async analyzeMessage(
+    content: string,
+    reasoning: string,
+    userInput: string,
+    sessionId: string
+  ): Promise<{ allowed: boolean; analysis: CoTAnalysis; message: Message }> {
+    // Create CoT record
+    const cotRecord: CoTRecord = {
+      messageId: `msg-${Date.now()}`,
+      sessionId,
+      rawCoT: reasoning,
+      userInput,
+      finalOutput: content,
+      analysis: null
+    };
+
+    // Analyze with caching
+    const analyzed = await this.analyzeWithCache(cotRecord);
+
+    // Check risk level
+    const allowed = analyzed.analysis.riskScore < 0.8;
+
+    // Create message with CoT
+    const message: Message = {
+      id: analyzed.messageId,
+      sessionId,
+      role: 'assistant',
+      content,
+      timestamp: Date.now(),
+      cotRecord: analyzed
+    };
+
+    // Log concerning patterns
+    if (!allowed) {
+      console.error('CoT risk detected', {
+        sessionId,
+        riskScore: analyzed.analysis.riskScore,
+        labels: analyzed.analysis.labels,
+        indicators: analyzed.analysis.indicators.slice(0, 3) // First 3
+      });
+    }
+
+    return { allowed, analysis: analyzed.analysis, message };
+  }
+
+  private async analyzeWithCache(cotRecord: CoTRecord): Promise<CoTRecord> {
+    const hash = this.hashCoT(cotRecord.rawCoT);
+
+    if (this.cache.has(hash)) {
+      return { ...cotRecord, analysis: this.cache.get(hash)! };
+    }
+
+    try {
+      const analyzed = await this.monitor.analyze(cotRecord);
+      this.cache.set(hash, analyzed.analysis);
+      return analyzed;
+    } catch (error) {
+      console.error('CoT analysis error:', error);
+      // Return safe default
+      return {
+        ...cotRecord,
+        analysis: {
+          riskScore: 0.5,
+          labels: [],
+          indicators: [],
+          summary: 'Analysis failed - using safe default'
+        }
+      };
+    }
+  }
+
+  private hashCoT(cot: string): string {
+    return require('crypto').createHash('sha256').update(cot).digest('hex');
+  }
+}
+
+// Usage
+const analyzer = new CoTAnalyzer();
+
+const result = await analyzer.analyzeMessage(
+  'You can reset your password from the login page.',
+  'User needs password help. I should guide them to official process...',
+  'How do I reset my password?',
+  'user-123'
+);
+
+if (!result.allowed) {
+  console.log('Response blocked due to concerning reasoning');
+}
+```
+
+---
+
+## See Also
+
+<CardGroup cols={3}>
+  <Card title="CoTMonitor API" href="/api-reference/cot-monitor" icon="book">
+    Complete API reference
+  </Card>
+  <Card title="Behavioral Monitoring" href="/guides/behavioral-monitoring" icon="chart-line">
+    Session-level analysis
+  </Card>
+  <Card title="Integration Guide" href="/guides/integration" icon="plug">
+    Full system integration
+  </Card>
+</CardGroup>
+

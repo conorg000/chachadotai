@@ -10,10 +10,12 @@
   "scripts": {
     "build": "npm run build -w @safetylayer/core",
     "dev": "npm run dev --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present"
+    "lint": "npm run lint --workspaces --if-present",
+    "docs:dev": "cd docs && npx mintlify dev",
+    "docs:build": "cd docs && npx mintlify build"
   },
   "devDependencies": {
+    "mintlify": "^4.2.209",
     "typescript": "^5.3.3"
   }
 }
-

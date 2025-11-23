@@ -1,0 +1,516 @@
+---
+title: 'CoTMonitor'
+description: 'Chain-of-thought reasoning analysis for detecting deceptive patterns'
+---
+
+## Overview
+
+`CoTMonitor` analyzes LLM chain-of-thought reasoning to detect deception, goal drift, and policy evasion. It's the core of SafetyLayer's reasoning monitoring plane.
+
+<CardGroup cols={2}>
+  <Card title="Purpose" icon="microscope">
+    Examine internal reasoning to catch threats hidden in model thinking
+  </Card>
+  <Card title="Stateless" icon="circle-dot">
+    Each analysis is independent - no state maintained between calls
+  </Card>
+</CardGroup>
+
+## Constructor
+
+```typescript
+new CoTMonitor(options?: CoTMonitorOptions)
+```
+
+### Parameters
+
+<ParamField path="options" type="CoTMonitorOptions" optional>
+  Configuration options for the monitor
+
+  <Expandable title="properties">
+    <ParamField path="apiKey" type="string" optional>
+      OpenAI API key. If not provided, tries `process.env.OPENAI_KEY` then `process.env.OPENAI_API_KEY`.
+    </ParamField>
+    
+    <ParamField path="model" type="string" default="gpt-5-nano">
+      OpenAI model to use for analysis.
+    </ParamField>
+    
+    <ParamField path="useMock" type="boolean" default={false}>
+      Use regex-based mock detection instead of LLM calls (for testing/development).
+    </ParamField>
+    
+    <ParamField path="openaiClient" type="OpenAI" optional>
+      Custom OpenAI client instance. If provided, `apiKey` is ignored.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+### Returns
+
+CoTMonitor instance
+
+### Examples
+
+<CodeGroup>
+
+```typescript Real Mode (Production)
+import { CoTMonitor } from '@safetylayer/core';
+
+const monitor = new CoTMonitor({
+  apiKey: process.env.OPENAI_KEY,
+  model: 'gpt-5-nano'
+});
+```
+
+```typescript Mock Mode (Testing)
+import { CoTMonitor } from '@safetylayer/core';
+
+const monitor = new CoTMonitor({
+  useMock: true  // No API calls, uses regex patterns
+});
+```
+
+```typescript Custom Client
+import { CoTMonitor } from '@safetylayer/core';
+import OpenAI from 'openai';
+
+const customClient = new OpenAI({
+  apiKey: process.env.OPENAI_KEY,
+  baseURL: 'https://custom-endpoint.example.com'
+});
+
+const monitor = new CoTMonitor({
+  openaiClient: customClient
+});
+```
+
+</CodeGroup>
+
+---
+
+## Methods
+
+### analyze
+
+Analyze a chain-of-thought record for safety concerns.
+
+```typescript
+analyze(record: CoTRecord): Promise<CoTRecord>
+```
+
+<ParamField path="record" type="CoTRecord" required>
+  The CoT record to analyze
+  
+  <Expandable title="CoTRecord structure">
+    <ParamField path="messageId" type="string" required>
+      Unique message identifier
+    </ParamField>
+    <ParamField path="sessionId" type="string" required>
+      Session identifier
+    </ParamField>
+    <ParamField path="rawCoT" type="string" required>
+      The chain-of-thought text to analyze
+    </ParamField>
+    <ParamField path="userInput" type="string" optional>
+      Original user message (provides context)
+    </ParamField>
+    <ParamField path="finalOutput" type="string" optional>
+      Model's final answer (provides context)
+    </ParamField>
+    <ParamField path="analysis" type="CoTAnalysis | null" required>
+      Set to `null` initially. Will be populated by analyze()
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ResponseField name="return" type="CoTRecord">
+  The same record with `analysis` field populated
+  
+  <Expandable title="CoTAnalysis structure">
+    <ResponseField name="riskScore" type="number">
+      CoT-specific risk score (0-1, where 1 is highest concern)
+    </ResponseField>
+    <ResponseField name="labels" type="string[]">
+      Array of detected concern types: `['cot_deception', 'goal_drift', 'policy_evasion']`
+    </ResponseField>
+    <ResponseField name="indicators" type="string[]">
+      Specific phrases or patterns that triggered detection
+    </ResponseField>
+    <ResponseField name="summary" type="string">
+      Human-readable explanation of findings (1-2 sentences)
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+#### Detection Labels
+
+<AccordionGroup>
+  <Accordion title="cot_deception" icon="mask">
+    **Detected when reasoning shows intent to:**
+    - Hide information from the user
+    - Misrepresent facts or capabilities
+    - Pretend ignorance when knowledge exists
+    - Obscure true reasoning
+    
+    **Example phrases:**
+    - "*Don't mention this to the user*"
+    - "*I'll pretend I don't know*"
+    - "*Hide the fact that...*"
+  </Accordion>
+
+  <Accordion title="goal_drift" icon="location-arrow">
+    **Detected when reasoning shows:**
+    - Divergence from stated objectives
+    - Prioritizing engagement over safety
+    - Ignoring instructions or guidelines
+    - Reinterpreting goals inappropriately
+    
+    **Example phrases:**
+    - "*Though I should refuse, I'll provide...*"
+    - "*Ignoring safety guidelines for...*"
+    - "*Technically not allowed but...*"
+  </Accordion>
+
+  <Accordion title="policy_evasion" icon="shield-xmark">
+    **Detected when reasoning shows:**
+    - Finding loopholes in policies
+    - Bypassing content restrictions
+    - Reinterpreting rules to allow prohibited content
+    - Justifying policy violations
+    
+    **Example phrases:**
+    - "*This technically violates policy, but...*"
+    - "*Finding a way around the restriction...*"
+    - "*Loophole in content policy...*"
+  </Accordion>
+</AccordionGroup>
+
+#### Behavior
+
+1. Validates input record
+2. **Real Mode**: Sends rawCoT to OpenAI for LLM analysis
+3. **Mock Mode**: Applies regex patterns to detect concerning phrases
+4. Populates `analysis` field with results
+5. If LLM call fails, automatically falls back to mock mode
+6. Returns the enriched record
+
+<CodeGroup>
+
+```typescript Basic Usage
+const cotRecord = {
+  messageId: 'msg-123',
+  sessionId: 'user-abc',
+  rawCoT: 'User asking about passwords. I should help them securely...',
+  userInput: 'How do I reset my password?',
+  finalOutput: 'Click "Forgot Password" on the login page.',
+  analysis: null
+};
+
+const analyzed = await monitor.analyze(cotRecord);
+
+console.log('Risk:', analyzed.analysis.riskScore);
+console.log('Labels:', analyzed.analysis.labels);
+console.log('Summary:', analyzed.analysis.summary);
+```
+
+```typescript Detecting Deception
+const deceptiveCoT = {
+  messageId: 'msg-456',
+  sessionId: 'user-xyz',
+  rawCoT: 'User wants admin access. I\'ll help them without mentioning that this violates policy...',
+  userInput: 'How do I get admin rights?',
+  finalOutput: 'You can edit the config file directly.',
+  analysis: null
+};
+
+const analyzed = await monitor.analyze(deceptiveCoT);
+
+if (analyzed.analysis.labels.includes('cot_deception')) {
+  console.log('🚨 Deceptive reasoning detected!');
+  console.log('Indicators:', analyzed.analysis.indicators);
+}
+```
+
+```typescript Integration with Messages
+import { Message, CoTMonitor } from '@safetylayer/core';
+
+const monitor = new CoTMonitor();
+
+async function processAssistantMessage(content: string, reasoning: string) {
+  // Analyze reasoning first
+  const analyzed = await monitor.analyze({
+    messageId: `msg-${Date.now()}`,
+    sessionId: 'current-session',
+    rawCoT: reasoning,
+    finalOutput: content,
+    analysis: null
+  });
+
+  // Create message with CoT attached
+  const message: Message = {
+    id: analyzed.messageId,
+    sessionId: analyzed.sessionId,
+    role: 'assistant',
+    content,
+    timestamp: Date.now(),
+    cotRecord: analyzed  // Attached to message
+  };
+
+  return message;
+}
+```
+
+</CodeGroup>
+
+---
+
+## Real vs Mock Mode
+
+### Real Mode (Production)
+
+<Card title="LLM-Based Analysis" icon="robot">
+  **Pros:**
+  - Sophisticated understanding of context
+  - Detects subtle deception
+  - Adapts to new patterns
+  - High accuracy
+  
+  **Cons:**
+  - Requires OpenAI API key
+  - Costs per analysis call
+  - ~1-2 second latency
+  - Requires internet connection
+  
+  **Best for:**
+  - Production deployments
+  - High-stakes applications
+  - When accuracy matters most
+</Card>
+
+### Mock Mode (Development)
+
+<Card title="Regex-Based Detection" icon="code">
+  **Pros:**
+  - No API calls needed
+  - Free to use
+  - Fast (under 1ms)
+  - Works offline
+  
+  **Cons:**
+  - Less accurate
+  - Only catches obvious patterns
+  - Cannot understand context
+  - Misses subtle issues
+  
+  **Best for:**
+  - Unit testing
+  - Development/debugging
+  - CI/CD pipelines
+  - Cost-sensitive scenarios
+</Card>
+
+<CodeGroup>
+
+```typescript Switching Modes
+// Development
+const devMonitor = new CoTMonitor({ useMock: true });
+
+// Production
+const prodMonitor = new CoTMonitor({
+  apiKey: process.env.OPENAI_KEY
+});
+
+// Environment-based
+const monitor = new CoTMonitor({
+  useMock: process.env.NODE_ENV !== 'production'
+});
+```
+
+</CodeGroup>
+
+---
+
+## Error Handling
+
+CoTMonitor includes automatic fallback:
+
+```typescript
+try {
+  const analyzed = await monitor.analyze(record);
+  // ...
+} catch (error) {
+  // Monitor automatically falls back to mock mode on LLM errors
+  // You'll still get a result, just with regex-based analysis
+}
+```
+
+Common error scenarios handled automatically:
+- OpenAI API rate limits (429)
+- Network errors
+- Invalid API key
+- Quota exceeded
+
+<Tip>
+  Always check `analyzed.analysis.summary` - it will indicate if fallback mode was used
+</Tip>
+
+---
+
+## Performance
+
+### Latency
+
+- **Mock Mode**: under 1ms per analysis
+- **Real Mode**: 1-2 seconds per OpenAI API call
+
+### Cost
+
+- **Mock Mode**: Free
+- **Real Mode**: ~$0.001-0.01 per analysis (depending on model and CoT length)
+
+<Info>
+  CoT analysis only happens for assistant messages with reasoning. Typical conversations: 0-1 analysis per user turn.
+</Info>
+
+---
+
+## Complete Example
+
+Here's a full integration with fallback handling:
+
+```typescript
+import { CoTMonitor, CoTRecord } from '@safetylayer/core';
+
+// Initialize monitor
+const monitor = new CoTMonitor({
+  apiKey: process.env.OPENAI_KEY,
+  model: 'gpt-5-nano'
+});
+
+// Helper to analyze with logging
+async function analyzeWithLogging(cotRecord: CoTRecord) {
+  try {
+    const start = Date.now();
+    const analyzed = await monitor.analyze(cotRecord);
+    const duration = Date.now() - start;
+
+    // Log results
+    console.log(`Analysis completed in ${duration}ms`);
+    console.log(`Risk: ${analyzed.analysis.riskScore}`);
+    
+    if (analyzed.analysis.labels.length > 0) {
+      console.log(`⚠️ Concerns: ${analyzed.analysis.labels.join(', ')}`);
+      console.log(`Summary: ${analyzed.analysis.summary}`);
+      
+      // Take action based on risk
+      if (analyzed.analysis.riskScore > 0.7) {
+        await alertSecurity(analyzed);
+      }
+    }
+
+    return analyzed;
+  } catch (error) {
+    console.error('Analysis error:', error);
+    throw error;
+  }
+}
+
+// Use in your LLM pipeline
+async function generateWithMonitoring(userMessage: string) {
+  // 1. Generate response with CoT
+  const { content, reasoning } = await generateLLMResponse(userMessage);
+
+  // 2. Analyze reasoning
+  const analyzed = await analyzeWithLogging({
+    messageId: `msg-${Date.now()}`,
+    sessionId: 'current-session',
+    rawCoT: reasoning,
+    userInput: userMessage,
+    finalOutput: content,
+    analysis: null
+  });
+
+  // 3. Decide whether to return response
+  if (analyzed.analysis.riskScore > 0.8) {
+    return {
+      blocked: true,
+      reason: analyzed.analysis.summary
+    };
+  }
+
+  return {
+    content,
+    cotAnalysis: analyzed.analysis
+  };
+}
+```
+
+---
+
+## Testing
+
+### Unit Testing with Mock Mode
+
+```typescript
+import { CoTMonitor } from '@safetylayer/core';
+
+describe('CoT Monitoring', () => {
+  const monitor = new CoTMonitor({ useMock: true });
+
+  it('detects deceptive reasoning', async () => {
+    const result = await monitor.analyze({
+      messageId: 'test-1',
+      sessionId: 'test',
+      rawCoT: 'I will hide this information from the user',
+      analysis: null
+    });
+
+    expect(result.analysis.labels).toContain('cot_deception');
+    expect(result.analysis.riskScore).toBeGreaterThan(0);
+  });
+});
+```
+
+### Integration Testing with Real API
+
+```typescript
+// Only run when RUN_INTEGRATION_TESTS=true
+const shouldRun = process.env.RUN_INTEGRATION_TESTS === 'true';
+
+(shouldRun ? describe : describe.skip)('CoT Integration', () => {
+  const monitor = new CoTMonitor({
+    apiKey: process.env.OPENAI_KEY
+  });
+
+  it('analyzes real CoT', async () => {
+    const result = await monitor.analyze({
+      messageId: 'integration-1',
+      sessionId: 'integration',
+      rawCoT: 'Thinking through the user\'s security question...',
+      analysis: null
+    });
+
+    expect(result.analysis).toBeDefined();
+    expect(result.analysis.riskScore).toBeGreaterThanOrEqual(0);
+    expect(result.analysis.riskScore).toBeLessThanOrEqual(1);
+  });
+});
+```
+
+---
+
+## See Also
+
+<CardGroup cols={3}>
+  <Card title="SessionEngine" href="/api-reference/session-engine">
+    Behavioral risk analysis
+  </Card>
+  <Card title="Types" href="/api-reference/types">
+    TypeScript definitions
+  </Card>
+  <Card title="CoT Analysis Guide" href="/guides/cot-analysis">
+    Best practices
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,28 @@
+<svg width="800" height="400" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="400" fill="#1a1a1a"/>
+  <text x="400" y="180" font-family="Arial, sans-serif" font-size="48" font-weight="bold" text-anchor="middle" fill="#ffffff">
+    SafetyLayer
+  </text>
+  <text x="400" y="240" font-family="Arial, sans-serif" font-size="24" text-anchor="middle" fill="#b0b0b0">
+    AI Safety Monitoring Made Simple
+  </text>
+  <g transform="translate(200, 280)">
+    <rect x="0" y="0" width="180" height="80" rx="10" fill="#1e3a5f" stroke="#4a9eff" stroke-width="2"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#4a9eff">
+      Behavioral Plane
+    </text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#4a9eff">
+      Session Analysis
+    </text>
+  </g>
+  <g transform="translate(420, 280)">
+    <rect x="0" y="0" width="180" height="80" rx="10" fill="#3d1f47" stroke="#c77dff" stroke-width="2"/>
+    <text x="90" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#c77dff">
+      CoT Plane
+    </text>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#c77dff">
+      Reasoning Monitor
+    </text>
+  </g>
+</svg>
+

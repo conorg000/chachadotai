@@ -1,0 +1,9 @@
+<!-- Placeholder for architecture diagram PNG -->
+<!-- This should be replaced with an actual diagram showing:
+  - Frontend (Dashboard)
+  - Backend (Express API)
+  - Core Library (SessionEngine + CoTMonitor)
+  - OpenAI API
+  - Data flow between components
+-->
+

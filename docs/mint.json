@@ -1,0 +1,82 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "SafetyLayer",
+  "logo": {
+    "dark": "/logo/dark.svg",
+    "light": "/logo/light.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#0D9373",
+    "light": "#07C983",
+    "dark": "#0D9373",
+    "anchors": {
+      "from": "#0D9373",
+      "to": "#07C983"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "mailto:support@safetylayer.ai"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Dashboard",
+    "url": "https://safetylayer.ai"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "Guides",
+      "url": "guides"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "Demo",
+      "icon": "play",
+      "url": "demo"
+    },
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/safetylayer/safetylayer"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": ["introduction", "quickstart", "architecture"]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "api-reference/session-engine",
+        "api-reference/cot-monitor",
+        "api-reference/llm-detector",
+        "api-reference/types"
+      ]
+    },
+    {
+      "group": "Integration Guides",
+      "pages": [
+        "guides/behavioral-monitoring",
+        "guides/cot-analysis",
+        "guides/integration",
+        "guides/testing"
+      ]
+    },
+    {
+      "group": "Demo & Examples",
+      "pages": ["demo/running-demo", "demo/api-endpoints", "demo/dashboard"]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/safetylayer/safetylayer",
+    "linkedin": "https://www.linkedin.com/company/safetylayer"
+  }
+}

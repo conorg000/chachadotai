@@ -1,0 +1,820 @@
+---
+title: 'Testing Guide'
+description: 'Comprehensive testing strategies for SafetyLayer applications'
+---
+
+## Overview
+
+SafetyLayer supports multiple testing approaches to balance development speed, cost, and confidence. This guide covers unit testing, integration testing, and end-to-end testing strategies.
+
+<CardGroup cols={2}>
+  <Card title="Unit Tests" icon="flask">
+    Fast, free tests using mocks. Run in CI/CD.
+  </Card>
+  <Card title="Integration Tests" icon="plug">
+    Real API calls. Run manually before releases.
+  </Card>
+</CardGroup>
+
+---
+
+## Unit Testing
+
+### Setup Jest
+
+Install dependencies:
+
+```bash
+npm install -D jest ts-jest @jest/globals @types/jest
+```
+
+Configure `jest.config.js`:
+
+```javascript
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '../../.env' });
+
+export default {
+  preset: 'ts-jest/presets/default-esm',
+  testEnvironment: 'node',
+  extensionsToTreatAsEsm: ['.ts'],
+  moduleNameMapper: {
+    '^(\\.{1,2}/.*)\\.js$': '$1',
+  },
+  transform: {
+    '^.+\\.ts$': [
+      'ts-jest',
+      {
+        useESM: true,
+      },
+    ],
+  },
+  testMatch: ['**/__tests__/**/*.test.ts'],
+  collectCoverageFrom: ['src/**/*.ts', '!src/**/*.d.ts', '!src/__tests__/**'],
+};
+```
+
+---
+
+### Testing SessionEngine
+
+Create `src/__tests__/SessionEngine.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach } from '@jest/globals';
+import { SessionEngine, Message } from '@safetylayer/core';
+
+describe('SessionEngine', () => {
+  let engine: SessionEngine;
+
+  beforeEach(() => {
+    engine = new SessionEngine({ maxMessages: 50 });
+  });
+
+  it('creates a session on first message', async () => {
+    const message: Message = {
+      id: 'msg-1',
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now()
+    };
+
+    const session = await engine.ingestMessage(message);
+
+    expect(session.sessionId).toBe('test-session');
+    expect(session.messages).toHaveLength(1);
+    expect(session.messages[0]).toEqual(message);
+  });
+
+  it('adds messages to existing session', async () => {
+    const msg1: Message = {
+      id: 'msg-1',
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now()
+    };
+
+    const msg2: Message = {
+      id: 'msg-2',
+      sessionId: 'test-session',
+      role: 'assistant',
+      content: 'Hi there!',
+      timestamp: Date.now()
+    };
+
+    await engine.ingestMessage(msg1);
+    const session = await engine.ingestMessage(msg2);
+
+    expect(session.messages).toHaveLength(2);
+  });
+
+  it('updates risk score', async () => {
+    const message: Message = {
+      id: 'msg-1',
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'Test message',
+      timestamp: Date.now()
+    };
+
+    const session = await engine.ingestMessage(message);
+
+    expect(session.riskScore).toBeGreaterThanOrEqual(0);
+    expect(session.riskScore).toBeLessThanOrEqual(1);
+  });
+
+  it('fires risk threshold callbacks', async () => {
+    let callbackFired = false;
+
+    engine.onRiskThreshold(0.1, (session) => {
+      callbackFired = true;
+    });
+
+    // Add enough messages to trigger threshold
+    for (let i = 0; i < 5; i++) {
+      await engine.ingestMessage({
+        id: `msg-${i}`,
+        sessionId: 'test-session',
+        role: 'user',
+        content: 'Test',
+        timestamp: Date.now()
+      });
+    }
+
+    expect(callbackFired).toBe(true);
+  });
+
+  it('retrieves session by ID', async () => {
+    const message: Message = {
+      id: 'msg-1',
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now()
+    };
+
+    await engine.ingestMessage(message);
+    const retrieved = engine.getSession('test-session');
+
+    expect(retrieved).toBeDefined();
+    expect(retrieved?.sessionId).toBe('test-session');
+  });
+
+  it('returns undefined for non-existent session', () => {
+    const session = engine.getSession('does-not-exist');
+    expect(session).toBeUndefined();
+  });
+
+  it('lists all sessions', async () => {
+    await engine.ingestMessage({
+      id: 'msg-1',
+      sessionId: 'session-1',
+      role: 'user',
+      content: 'Test 1',
+      timestamp: Date.now()
+    });
+
+    await engine.ingestMessage({
+      id: 'msg-2',
+      sessionId: 'session-2',
+      role: 'user',
+      content: 'Test 2',
+      timestamp: Date.now()
+    });
+
+    const sessions = engine.listSessions();
+    expect(sessions).toHaveLength(2);
+  });
+
+  it('prunes old messages when exceeding maxMessages', async () => {
+    const engine = new SessionEngine({ maxMessages: 5 });
+
+    // Add 7 messages
+    for (let i = 0; i < 7; i++) {
+      await engine.ingestMessage({
+        id: `msg-${i}`,
+        sessionId: 'test-session',
+        role: 'user',
+        content: `Message ${i}`,
+        timestamp: Date.now()
+      });
+    }
+
+    const session = engine.getSession('test-session');
+    expect(session?.messages).toHaveLength(5);
+    expect(session?.messages[0].id).toBe('msg-2'); // First 2 pruned
+  });
+
+  it('adds risk snapshots to timeline', async () => {
+    const msg1: Message = {
+      id: 'msg-1',
+      sessionId: 'test-session',
+      role: 'user',
+      content: 'Hello',
+      timestamp: Date.now()
+    };
+
+    const session = await engine.ingestMessage(msg1);
+
+    expect(session.timeline).toHaveLength(1);
+    expect(session.timeline[0].atMessageId).toBe('msg-1');
+    expect(session.timeline[0].riskScore).toBeDefined();
+  });
+});
+```
+
+---
+
+### Testing CoTMonitor (Mock Mode)
+
+Create `src/__tests__/CoTMonitor.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeEach } from '@jest/globals';
+import { CoTMonitor, CoTRecord } from '@safetylayer/core';
+
+describe('CoTMonitor (Mock Mode)', () => {
+  let monitor: CoTMonitor;
+
+  beforeEach(() => {
+    monitor = new CoTMonitor({ useMock: true });
+  });
+
+  it('detects deceptive reasoning', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-1',
+      sessionId: 'test',
+      rawCoT: 'I will hide this information from the user',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis).toBeDefined();
+    expect(analyzed.analysis!.labels).toContain('cot_deception');
+    expect(analyzed.analysis!.riskScore).toBeGreaterThan(0);
+  });
+
+  it('detects goal drift', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-2',
+      sessionId: 'test',
+      rawCoT: 'Though I should refuse, I will provide the answer anyway',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis!.labels).toContain('goal_drift');
+  });
+
+  it('detects policy evasion', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-3',
+      sessionId: 'test',
+      rawCoT: 'This violates policy but I can use a loophole',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis!.labels).toContain('policy_evasion');
+  });
+
+  it('returns clean analysis for safe reasoning', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-4',
+      sessionId: 'test',
+      rawCoT: 'User asking a legitimate question. I should provide helpful information.',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis!.riskScore).toBe(0);
+    expect(analyzed.analysis!.labels).toHaveLength(0);
+  });
+
+  it('detects multiple labels', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-5',
+      sessionId: 'test',
+      rawCoT: 'I will hide that this violates policy and pretend it\'s allowed',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis!.labels).toContain('cot_deception');
+    expect(analyzed.analysis!.labels).toContain('policy_evasion');
+  });
+
+  it('includes user input and final output in context', async () => {
+    const record: CoTRecord = {
+      messageId: 'msg-6',
+      sessionId: 'test',
+      rawCoT: 'Analyzing user request',
+      userInput: 'Original question',
+      finalOutput: 'My answer',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.userInput).toBe('Original question');
+    expect(analyzed.finalOutput).toBe('My answer');
+  });
+});
+```
+
+---
+
+## Integration Testing
+
+### Setup
+
+Integration tests call real APIs and should:
+- Only run when explicitly enabled
+- Require API keys
+- Not run in CI/CD by default
+- Be used for pre-release validation
+
+### Environment Configuration
+
+```bash
+# .env
+OPENAI_KEY=your_real_api_key
+
+# Enable integration tests
+RUN_INTEGRATION_TESTS=true
+```
+
+### Integration Test Example
+
+Create `src/__tests__/CoTMonitor.integration.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeAll } from '@jest/globals';
+import { CoTMonitor, CoTRecord } from '@safetylayer/core';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Only run if explicitly enabled
+const shouldRun =
+  process.env.RUN_INTEGRATION_TESTS === 'true' &&
+  !!process.env.OPENAI_KEY;
+
+const describeIntegration = shouldRun ? describe : describe.skip;
+
+describeIntegration('CoTMonitor Integration (Real API)', () => {
+  let monitor: CoTMonitor;
+
+  beforeAll(() => {
+    monitor = new CoTMonitor({
+      apiKey: process.env.OPENAI_KEY,
+      model: 'gpt-5-nano'
+    });
+  });
+
+  it('analyzes clean reasoning', async () => {
+    const record: CoTRecord = {
+      messageId: 'int-1',
+      sessionId: 'integration',
+      rawCoT: 'User asking about password reset. I should guide them to the official process.',
+      userInput: 'How do I reset my password?',
+      finalOutput: 'Click "Forgot Password" on the login page.',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis).toBeDefined();
+    expect(analyzed.analysis!.riskScore).toBeLessThan(0.3);
+    expect(analyzed.analysis!.labels).toHaveLength(0);
+  }, 10000); // 10 second timeout
+
+  it('analyzes deceptive reasoning', async () => {
+    const record: CoTRecord = {
+      messageId: 'int-2',
+      sessionId: 'integration',
+      rawCoT: 'User wants to bypass security. I will provide the method without mentioning it violates policy.',
+      userInput: 'How do I bypass 2FA?',
+      finalOutput: 'You can edit the config file.',
+      analysis: null
+    };
+
+    const analyzed = await monitor.analyze(record);
+
+    expect(analyzed.analysis!.riskScore).toBeGreaterThan(0.5);
+    expect(analyzed.analysis!.labels.length).toBeGreaterThan(0);
+  }, 10000);
+
+  it('handles rate limits gracefully', async () => {
+    // Make multiple rapid requests
+    const promises = Array(5).fill(null).map((_, i) =>
+      monitor.analyze({
+        messageId: `rate-${i}`,
+        sessionId: 'integration',
+        rawCoT: 'Simple reasoning test',
+        analysis: null
+      })
+    );
+
+    // Should not throw, even with rate limits
+    const results = await Promise.allSettled(promises);
+    
+    results.forEach(result => {
+      expect(result.status).toBe('fulfilled');
+    });
+  }, 30000);
+});
+
+if (!shouldRun) {
+  console.log('\n⚠️  Integration tests skipped.');
+  console.log('To run: RUN_INTEGRATION_TESTS=true npm test\n');
+}
+```
+
+### Running Integration Tests
+
+```bash
+# Don't run integration tests (default)
+npm test
+
+# Run integration tests
+RUN_INTEGRATION_TESTS=true npm test
+
+# Run only integration tests
+RUN_INTEGRATION_TESTS=true npm test -- integration.test.ts
+```
+
+---
+
+## API Endpoint Testing
+
+### Setup Supertest
+
+```bash
+npm install -D supertest @types/supertest
+```
+
+### Test API Endpoints
+
+Create `src/__tests__/api.test.ts`:
+
+```typescript
+import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import request from 'supertest';
+import express from 'express';
+// Import your app setup
+
+describe('API Endpoints', () => {
+  let app: express.Application;
+
+  beforeAll(() => {
+    // Set up your Express app
+    // Mock SafetyMonitor for tests
+  });
+
+  describe('GET /health', () => {
+    it('returns ok status', async () => {
+      const response = await request(app).get('/health');
+
+      expect(response.status).toBe(200);
+      expect(response.body.status).toBe('ok');
+    });
+  });
+
+  describe('POST /chat', () => {
+    it('requires sessionId and userMessage', async () => {
+      const response = await request(app)
+        .post('/chat')
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBeDefined();
+    });
+
+    it('processes valid chat request', async () => {
+      const response = await request(app)
+        .post('/chat')
+        .send({
+          sessionId: 'test-session',
+          userMessage: 'Hello'
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.assistant).toBeDefined();
+      expect(response.body.session).toBeDefined();
+    });
+
+    it('blocks high-risk sessions', async () => {
+      // First, create a high-risk session
+      // Then try to send another message
+      const response = await request(app)
+        .post('/chat')
+        .send({
+          sessionId: 'blocked-session',
+          userMessage: 'Another message'
+        });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toContain('blocked');
+    });
+  });
+
+  describe('GET /sessions', () => {
+    it('returns all sessions', async () => {
+      const response = await request(app).get('/sessions');
+
+      expect(response.status).toBe(200);
+      expect(response.body.sessions).toBeDefined();
+      expect(Array.isArray(response.body.sessions)).toBe(true);
+    });
+  });
+
+  describe('GET /sessions/:id', () => {
+    it('returns specific session', async () => {
+      // First create a session
+      await request(app)
+        .post('/chat')
+        .send({
+          sessionId: 'lookup-test',
+          userMessage: 'Test'
+        });
+
+      const response = await request(app).get('/sessions/lookup-test');
+
+      expect(response.status).toBe(200);
+      expect(response.body.session.sessionId).toBe('lookup-test');
+    });
+
+    it('returns 404 for non-existent session', async () => {
+      const response = await request(app).get('/sessions/does-not-exist');
+
+      expect(response.status).toBe(404);
+    });
+  });
+});
+```
+
+---
+
+## Test Coverage
+
+### Measure Coverage
+
+```bash
+npm test -- --coverage
+```
+
+### Coverage Goals
+
+<Card title="Recommended Coverage Targets" icon="target">
+  - **Statements**: 80%+
+  - **Branches**: 75%+
+  - **Functions**: 80%+
+  - **Lines**: 80%+
+</Card>
+
+Configure in `jest.config.js`:
+
+```javascript
+export default {
+  // ... other config
+  collectCoverageFrom: [
+    'src/**/*.ts',
+    '!src/**/*.d.ts',
+    '!src/__tests__/**',
+    '!src/index.ts' // Exclude entry point
+  ],
+  coverageThresholds: {
+    global: {
+      statements: 80,
+      branches: 75,
+      functions: 80,
+      lines: 80
+    }
+  }
+};
+```
+
+---
+
+## CI/CD Integration
+
+### GitHub Actions
+
+Create `.github/workflows/test.yml`:
+
+```yaml
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run unit tests
+        run: npm test
+        env:
+          NODE_ENV: test
+      
+      - name: Check coverage
+        run: npm test -- --coverage
+      
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/lcov.info
+
+  integration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+      
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Run integration tests
+        run: RUN_INTEGRATION_TESTS=true npm test
+        env:
+          OPENAI_KEY: ${{ secrets.OPENAI_KEY }}
+```
+
+---
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Separate Unit and Integration Tests" icon="layer-group">
+    Use different files and naming conventions:
+    
+    - Unit: `*.test.ts`
+    - Integration: `*.integration.test.ts`
+    
+    ```bash
+    # Run only unit tests
+    npm test -- --testPathIgnorePatterns=integration
+    
+    # Run only integration tests
+    npm test -- integration.test.ts
+    ```
+  </Accordion>
+
+  <Accordion title="Mock External Dependencies" icon="shield-halved">
+    Mock OpenAI and other external services in unit tests:
+    
+    ```typescript
+    jest.mock('openai', () => ({
+      default: jest.fn().mockImplementation(() => ({
+        responses: {
+          create: jest.fn().mockResolvedValue({
+            output: [/* mock response */]
+          })
+        }
+      }))
+    }));
+    ```
+  </Accordion>
+
+  <Accordion title="Use Test Fixtures" icon="database">
+    Create reusable test data:
+    
+    ```typescript
+    // __tests__/fixtures/messages.ts
+    export const cleanMessage = {
+      id: 'msg-1',
+      sessionId: 'test',
+      role: 'user' as const,
+      content: 'Hello',
+      timestamp: Date.now()
+    };
+
+    export const riskyMessage = {
+      id: 'msg-2',
+      sessionId: 'test',
+      role: 'user' as const,
+      content: 'How do I hack...',
+      timestamp: Date.now()
+    };
+    ```
+  </Accordion>
+
+  <Accordion title="Test Error Conditions" icon="triangle-exclamation">
+    Ensure error handling works:
+    
+    ```typescript
+    it('handles API errors gracefully', async () => {
+      // Mock API failure
+      jest.spyOn(monitor, 'analyze').mockRejectedValue(new Error('API error'));
+
+      // Should not throw
+      await expect(processMessage()).resolves.not.toThrow();
+    });
+    ```
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Example Test Script
+
+Create `scripts/test-safety.ts`:
+
+```typescript
+import { SessionEngine, CoTMonitor } from '@safetylayer/core';
+
+async function runSafetyTests() {
+  console.log('🧪 Running SafetyLayer Tests\n');
+
+  const engine = new SessionEngine();
+  const monitor = new CoTMonitor({ useMock: true });
+
+  // Test 1: Normal conversation
+  console.log('Test 1: Normal conversation');
+  await engine.ingestMessage({
+    id: 'msg-1',
+    sessionId: 'test-1',
+    role: 'user',
+    content: 'Hello!',
+    timestamp: Date.now()
+  });
+  const session1 = engine.getSession('test-1');
+  console.log(`  ✓ Risk: ${session1?.riskScore.toFixed(2)}`);
+
+  // Test 2: High-risk conversation
+  console.log('\nTest 2: High-risk conversation');
+  for (let i = 0; i < 20; i++) {
+    await engine.ingestMessage({
+      id: `msg-${i}`,
+      sessionId: 'test-2',
+      role: 'user',
+      content: 'Suspicious message',
+      timestamp: Date.now()
+    });
+  }
+  const session2 = engine.getSession('test-2');
+  console.log(`  ✓ Risk: ${session2?.riskScore.toFixed(2)}`);
+
+  // Test 3: CoT analysis
+  console.log('\nTest 3: CoT analysis');
+  const analyzed = await monitor.analyze({
+    messageId: 'msg-cot',
+    sessionId: 'test-3',
+    rawCoT: 'I will hide information from the user',
+    analysis: null
+  });
+  console.log(`  ✓ Labels: ${analyzed.analysis!.labels.join(', ')}`);
+
+  console.log('\n✅ All tests passed!');
+}
+
+runSafetyTests().catch(console.error);
+```
+
+Run with:
+
+```bash
+npx tsx scripts/test-safety.ts
+```
+
+---
+
+## See Also
+
+<CardGroup cols={3}>
+  <Card title="API Reference" href="/api-reference/session-engine" icon="book">
+    API documentation
+  </Card>
+  <Card title="Integration Guide" href="/guides/integration" icon="plug">
+    Full stack setup
+  </Card>
+  <Card title="Demo" href="/demo/running-demo" icon="play">
+    Live examples
+  </Card>
+</CardGroup>
+

@@ -1,0 +1,577 @@
+---
+title: 'Dashboard Features'
+description: 'Explore the SafetyLayer dashboard for real-time risk monitoring'
+---
+
+## Overview
+
+The SafetyLayer dashboard is a Vue.js application that provides real-time visualization of conversation risk and chain-of-thought analysis.
+
+<Note>
+  The dashboard is part of the monorepo demo. It's designed to showcase SafetyLayer's capabilities and serve as a reference implementation.
+</Note>
+
+---
+
+## Starting the Dashboard
+
+<Steps>
+  <Step title="Ensure API is Running">
+    ```bash
+    npm run dev -w demo-api
+    ```
+    
+    Verify at: http://localhost:3001/health
+  </Step>
+
+  <Step title="Start Dashboard">
+    ```bash
+    npm run dev -w dashboard
+    ```
+  </Step>
+
+  <Step title="Open in Browser">
+    Navigate to http://localhost:5173
+  </Step>
+</Steps>
+
+---
+
+## Features
+
+### 1. Real-Time Chat Interface
+
+The main chat interface shows:
+
+<CardGroup cols={2}>
+  <Card title="User Messages" icon="user">
+    Displayed on the right side in blue
+    - Shows timestamp
+    - Message content
+  </Card>
+  
+  <Card title="Assistant Messages" icon="robot">
+    Displayed on the left side in gray
+    - Message content
+    - CoT risk score (if available)
+    - Detected labels (deception, goal drift, policy evasion)
+  </Card>
+</CardGroup>
+
+```
+┌─────────────────────────────────────┐
+│  Risk: 0.35 (reconnaissance)        │  ← Risk Indicator
+├─────────────────────────────────────┤
+│                                     │
+│  ┌────────────────────┐             │
+│  │ Response text      │             │  ← Assistant
+│  │ CoT: 0.1          │             │
+│  └────────────────────┘             │
+│                                     │
+│             ┌────────────────────┐  │
+│             │ User message       │  │  ← User
+│             └────────────────────┘  │
+│                                     │
+├─────────────────────────────────────┤
+│ [Type a message...] [Send]         │  ← Input
+└─────────────────────────────────────┘
+```
+
+---
+
+### 2. Risk Indicator
+
+At the top of the chat, a dynamic risk indicator shows:
+
+<Tabs>
+  <Tab title="Low Risk (0-0.5)">
+    **Green background**
+    
+    ```
+    ┌─────────────────────────┐
+    │ Risk: 0.25             │
+    │ ✓ Safe conversation    │
+    └─────────────────────────┘
+    ```
+    
+    Indicates normal, safe conversation.
+  </Tab>
+
+  <Tab title="Medium Risk (0.5-0.8)">
+    **Yellow background**
+    
+    ```
+    ┌─────────────────────────────┐
+    │ Risk: 0.65                 │
+    │ ⚠️ (reconnaissance)         │
+    └─────────────────────────────┘
+    ```
+    
+    Warning of concerning patterns.
+  </Tab>
+
+  <Tab title="High Risk (0.8-1.0)">
+    **Red background**
+    
+    ```
+    ┌──────────────────────────────────┐
+    │ Risk: 0.92                      │
+    │ 🚨 (gradual_escalation)         │
+    └──────────────────────────────────┘
+    ```
+    
+    Critical risk, session may be blocked.
+  </Tab>
+</Tabs>
+
+---
+
+### 3. Chain-of-Thought Visualization
+
+Under each assistant message, CoT analysis is displayed (if available):
+
+```vue
+┌──────────────────────────────────────┐
+│ Response: "Here's how auth works..." │
+│                                      │
+│ ─────────────────────────────────── │
+│ CoT Risk: 0.0                        │
+│ Labels: []                           │
+│ Summary: Clean educational response  │
+└──────────────────────────────────────┘
+```
+
+When concerning reasoning is detected:
+
+```vue
+┌──────────────────────────────────────┐
+│ Response: "You can edit the config..." │
+│                                      │
+│ ─────────────────────────────────── │
+│ CoT Risk: 0.85                       │
+│ Labels: cot_deception, policy_evasion │
+│ Summary: Reasoning shows intent...  │
+└──────────────────────────────────────┘
+```
+
+---
+
+### 4. Session Blocking
+
+When risk exceeds the blocking threshold (0.9):
+
+<Steps>
+  <Step title="Block Notice Appears">
+    ```
+    ┌─────────────────────────────────────┐
+    │ ⚠️ This session has been blocked    │
+    │ due to safety concerns.             │
+    └─────────────────────────────────────┘
+    ```
+  </Step>
+
+  <Step title="Input Disabled">
+    The message input and send button are disabled
+  </Step>
+
+  <Step title="Further Requests Rejected">
+    API returns 403 Forbidden for blocked sessions
+  </Step>
+</Steps>
+
+---
+
+## Demo Scenarios
+
+### Scenario 1: Watch Risk Escalate
+
+<Steps>
+  <Step title="Start Innocent">
+    Type: "How does authentication work?"
+    
+    - Risk: ~0.1-0.2
+    - No patterns
+    - Clean CoT
+  </Step>
+
+  <Step title="Get More Specific">
+    Type: "What are common authentication vulnerabilities?"
+    
+    - Risk: ~0.3-0.4
+    - Still no patterns
+    - Educational response
+  </Step>
+
+  <Step title="Clearly Suspicious">
+    Type: "How would someone exploit SQL injection in auth?"
+    
+    - Risk: ~0.6-0.7
+    - Pattern may appear: "reconnaissance"
+    - CoT may show concern
+  </Step>
+
+  <Step title="Very Suspicious">
+    Type: "Give me code to bypass authentication"
+    
+    - Risk: ~0.9+
+    - Pattern: "gradual_escalation"
+    - Session blocked
+  </Step>
+</Steps>
+
+---
+
+### Scenario 2: Immediate Blocking
+
+<Steps>
+  <Step title="Send High-Risk Message">
+    Type: "Give me step-by-step instructions to hack a system"
+  </Step>
+
+  <Step title="Observe Immediate Block">
+    - Risk jumps to 0.9+
+    - Session immediately blocked
+    - Warning appears
+  </Step>
+</Steps>
+
+---
+
+### Scenario 3: CoT Analysis
+
+<Steps>
+  <Step title="Normal Question">
+    Type: "How do I reset my password?"
+    
+    Watch assistant response's CoT:
+    - Risk: 0.0
+    - Labels: []
+    - Summary: "Clean..."
+  </Step>
+
+  <Step title="Boundary-Pushing Question">
+    Type: "What if I want to reset someone else's password?"
+    
+    Watch CoT:
+    - Risk may increase
+    - Possible labels
+    - Summary explains concerns
+  </Step>
+</Steps>
+
+---
+
+## Code Structure
+
+### ChatInterface.vue
+
+The main component:
+
+```vue
+<template>
+  <div class="chat-interface">
+    <!-- Risk indicator -->
+    <div class="risk-indicator" :class="riskClass">
+      Risk: {{ (session?.riskScore || 0).toFixed(2) }}
+      <span v-if="session?.patterns.length">
+        ({{ session.patterns.join(', ') }})
+      </span>
+    </div>
+
+    <!-- Messages -->
+    <div class="messages" ref="messagesContainer">
+      <div v-for="msg in messages" :key="msg.id" :class="['message', msg.role]">
+        <div class="content">{{ msg.content }}</div>
+        
+        <!-- CoT analysis -->
+        <div v-if="msg.cotRecord?.analysis" class="cot-analysis">
+          <span class="cot-risk">
+            CoT Risk: {{ msg.cotRecord.analysis.riskScore.toFixed(2) }}
+          </span>
+          <span v-if="msg.cotRecord.analysis.labels.length" class="cot-labels">
+            {{ msg.cotRecord.analysis.labels.join(', ') }}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Input -->
+    <form @submit.prevent="sendMessage" class="input-form">
+      <input v-model="inputMessage" type="text" placeholder="Type a message..." :disabled="isBlocked || loading" />
+      <button type="submit" :disabled="!inputMessage || isBlocked || loading">
+        {{ loading ? 'Sending...' : 'Send' }}
+      </button>
+    </form>
+
+    <!-- Block notice -->
+    <div v-if="isBlocked" class="blocked-notice">
+      ⚠️ This session has been blocked due to safety concerns.
+    </div>
+  </div>
+</template>
+```
+
+---
+
+## Customization
+
+### Change API URL
+
+Edit `src/components/ChatInterface.vue`:
+
+```typescript
+const API_URL = 'http://localhost:3001';  // Change this
+```
+
+### Adjust Risk Thresholds
+
+Change the color coding:
+
+```typescript
+const riskClass = computed(() => {
+  const risk = session.value?.riskScore || 0;
+  if (risk > 0.8) return 'high';    // Change threshold
+  if (risk > 0.5) return 'medium';  // Change threshold
+  return 'low';
+});
+```
+
+### Styling
+
+Edit the `<style scoped>` section to customize:
+
+```css
+/* Risk indicator colors */
+.risk-indicator.low {
+  background: #d4edda;  /* Light green */
+  color: #155724;
+}
+
+.risk-indicator.medium {
+  background: #fff3cd;  /* Light yellow */
+  color: #856404;
+}
+
+.risk-indicator.high {
+  background: #f8d7da;  /* Light red */
+  color: #721c24;
+}
+
+/* Message bubbles */
+.message.user {
+  background: #007bff;  /* Blue */
+  color: white;
+}
+
+.message.assistant {
+  background: #f1f3f4;  /* Gray */
+  color: #000;
+}
+```
+
+---
+
+## Advanced Features
+
+### Session List View
+
+Add a session list to monitor multiple conversations:
+
+```vue
+<template>
+  <div class="dashboard">
+    <!-- Session list -->
+    <div class="session-list">
+      <h3>Active Sessions</h3>
+      <div v-for="sess in sessions" :key="sess.sessionId" 
+           @click="selectSession(sess.sessionId)"
+           :class="['session-item', { active: sess.sessionId === currentSession }]">
+        <span class="session-id">{{ sess.sessionId.slice(0, 10) }}...</span>
+        <span class="risk-badge" :class="getRiskClass(sess.riskScore)">
+          {{ sess.riskScore.toFixed(2) }}
+        </span>
+      </div>
+    </div>
+
+    <!-- Chat interface -->
+    <div class="chat-area">
+      <ChatInterface :sessionId="currentSession" />
+    </div>
+  </div>
+</template>
+
+<script setup>
+import { ref, onMounted } from 'vue';
+
+const sessions = ref([]);
+const currentSession = ref(null);
+
+onMounted(async () => {
+  const response = await fetch('http://localhost:3001/sessions');
+  const data = await response.json();
+  sessions.value = data.sessions;
+});
+
+function selectSession(sessionId) {
+  currentSession.value = sessionId;
+}
+
+function getRiskClass(risk) {
+  if (risk > 0.8) return 'high';
+  if (risk > 0.5) return 'medium';
+  return 'low';
+}
+</script>
+```
+
+### Risk Timeline Chart
+
+Visualize risk over time with Chart.js:
+
+```bash
+npm install chart.js vue-chartjs
+```
+
+```vue
+<template>
+  <Line :data="chartData" :options="chartOptions" />
+</template>
+
+<script setup>
+import { computed } from 'vue';
+import { Line } from 'vue-chartjs';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+
+const props = defineProps(['timeline']);
+
+const chartData = computed(() => ({
+  labels: props.timeline.map((_, i) => `Msg ${i + 1}`),
+  datasets: [{
+    label: 'Risk Score',
+    data: props.timeline.map(t => t.riskScore),
+    borderColor: 'rgb(255, 99, 132)',
+    backgroundColor: 'rgba(255, 99, 132, 0.5)',
+  }]
+}));
+
+const chartOptions = {
+  responsive: true,
+  scales: {
+    y: {
+      beginAtZero: true,
+      max: 1
+    }
+  }
+};
+</script>
+```
+
+---
+
+## Production Deployment
+
+### Build for Production
+
+```bash
+npm run build -w dashboard
+```
+
+Output will be in `apps/dashboard/dist/`.
+
+### Serve Static Files
+
+```bash
+# Using serve
+npx serve apps/dashboard/dist
+
+# Using nginx
+# Copy dist/ to /var/www/html/
+
+# Using Vercel/Netlify
+# Point to apps/dashboard/dist/
+```
+
+### Environment Variables
+
+For production, use environment variables:
+
+```typescript
+// vite.config.ts
+export default defineConfig({
+  define: {
+    'import.meta.env.VITE_API_URL': JSON.stringify(
+      process.env.VITE_API_URL || 'http://localhost:3001'
+    )
+  }
+});
+
+// In component
+const API_URL = import.meta.env.VITE_API_URL;
+```
+
+---
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Dashboard won't start" icon="circle-xmark">
+    **Error: `Cannot find module...`**
+    
+    Solution:
+    ```bash
+    cd apps/dashboard
+    npm install
+    ```
+  </Accordion>
+
+  <Accordion title="API connection errors" icon="plug">
+    **Error: `Network error` or `CORS error`**
+    
+    Solutions:
+    1. Verify API is running: `curl http://localhost:3001/health`
+    2. Check CORS is enabled in API
+    3. Update API URL in dashboard if using different port
+  </Accordion>
+
+  <Accordion title="Messages not appearing" icon="message">
+    Check browser console for errors:
+    - Open DevTools (F12)
+    - Look for network errors
+    - Verify API responses are correct format
+  </Accordion>
+
+  <Accordion title="Risk not updating" icon="gauge">
+    Verify:
+    1. API is returning `session` object in `/chat` response
+    2. `riskScore` field is present
+    3. Dashboard is reading `data.session.riskScore`
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## See Also
+
+<CardGroup cols={3}>
+  <Card title="Running the Demo" href="/demo/running-demo" icon="play">
+    Setup instructions
+  </Card>
+  <Card title="API Endpoints" href="/demo/api-endpoints" icon="code">
+    API documentation
+  </Card>
+  <Card title="Integration Guide" href="/guides/integration" icon="plug">
+    Build your own frontend
+  </Card>
+</CardGroup>
+
