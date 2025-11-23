@@ -12,10 +12,11 @@ import {
 import { randomUUID } from "crypto";
 import type { Request, Response } from "express";
 import { Router } from "express";
-import { query } from "../db/connection.js";
+import { query, pool } from "../db/connection.js";
 import { CoTAnalyzerService } from '../services/cot-analyzer.js';
 import { SessionAnalyzerService } from '../services/session-analyzer.js';
 import { OpenAIThreatModel } from '../services/threat-model/openai-threat-model.js';
+import { PolicyEngine } from '../services/policy-engine.js';
 import { config } from '../config.js';
 
 const router = Router();
@@ -24,6 +25,7 @@ const router = Router();
 const threatModel = new OpenAIThreatModel(config.threatModel.openai);
 const cotAnalyzer = new CoTAnalyzerService(threatModel);
 const sessionAnalyzer = new SessionAnalyzerService(threatModel);
+const policyEngine = new PolicyEngine(pool);
 
 interface AuthenticatedRequest extends Request {
   projectId?: string;
@@ -75,6 +77,78 @@ async function triggerEventAnalysis(
           events,
         });
         console.log(`[Analysis] Session analysis completed for session ${sessionId} (${events.length} events)`);
+
+        // Step 3: Run policy evaluation after session analysis
+        console.log(`[Policy] Starting policy evaluation for session ${sessionId}`);
+
+        // Fetch updated session data
+        const sessionResult = await query(
+          `SELECT current_risk_score, current_patterns FROM sessions WHERE id = $1`,
+          [sessionId]
+        );
+
+        if (sessionResult.rows.length > 0) {
+          const session = sessionResult.rows[0];
+
+          // Fetch latest risk snapshot (optional but helpful context)
+          const snapshotResult = await query(
+            `SELECT risk_score, patterns, explanation 
+             FROM risk_snapshots 
+             WHERE session_id = $1 
+             ORDER BY created_at DESC 
+             LIMIT 1`,
+            [sessionId]
+          );
+
+          const latestSnapshot = snapshotResult.rows.length > 0 
+            ? snapshotResult.rows[0]
+            : undefined;
+
+          // Evaluate policies
+          const policyDecision = await policyEngine.evaluate({
+            projectId,
+            sessionId,
+            currentRiskScore: parseFloat(session.current_risk_score) || 0,
+            currentPatterns: session.current_patterns || [],
+            latestSnapshot: latestSnapshot ? {
+              id: '',
+              sessionId,
+              projectId,
+              eventId: '', // Optional, not always tied to specific event
+              riskScore: parseFloat(latestSnapshot.risk_score),
+              patterns: latestSnapshot.patterns || [],
+              explanation: latestSnapshot.explanation,
+              createdAt: Date.now(),
+            } : undefined,
+          });
+
+          console.log(`[Policy] Policy evaluation completed: action=${policyDecision.action}, triggered=${policyDecision.triggeredPolicies.length}`);
+
+          // Store policy decision as event if action is not 'allow'
+          if (policyDecision.action !== 'allow') {
+            const policyEventId = randomUUID();
+            await query(
+              `INSERT INTO events (id, session_id, project_id, type, metadata, created_at)
+               VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)`,
+              [
+                policyEventId,
+                sessionId,
+                projectId,
+                'policy_decision',
+                JSON.stringify({
+                  action: policyDecision.action,
+                  reasons: policyDecision.reasons,
+                  triggeredPolicies: policyDecision.triggeredPolicies,
+                  riskScore: policyDecision.riskScore,
+                  patterns: policyDecision.patterns,
+                }),
+              ]
+            );
+            console.log(`[Policy] Stored policy decision event: ${policyEventId}`);
+
+            // TODO: Send webhook if configured (future enhancement)
+          }
+        }
       }
     }
   } catch (error) {

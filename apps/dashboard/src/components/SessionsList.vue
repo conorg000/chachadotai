@@ -24,57 +24,57 @@
 
     <div v-else class="sessions-table-container">
       <table class="sessions-table">
-        <thead>
-          <tr>
-            <th>Session ID</th>
+      <thead>
+        <tr>
+          <th>Session ID</th>
             <th>Risk</th>
-            <th>Patterns</th>
+          <th>Patterns</th>
             <th>Events</th>
-            <th>Last Activity</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="session in sessions"
+          <th>Last Activity</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="session in sessions"
             :key="session.id"
             @click="viewSession(session.id)"
-            class="session-row"
+          class="session-row"
             :class="'risk-' + getRiskClass(session.currentRiskScore)"
-          >
+        >
             <td class="session-id">{{ session.id }}</td>
             <td class="risk-cell">
               <div class="risk-badge" :class="getRiskClass(session.currentRiskScore)">
                 <span class="risk-value">{{ session.currentRiskScore.toFixed(2) }}</span>
               </div>
-            </td>
+          </td>
             <td class="patterns-cell">
-              <div class="patterns">
-                <span
+            <div class="patterns">
+              <span
                   v-for="pattern in session.currentPatterns"
-                  :key="pattern"
-                  class="pattern-tag"
-                >
-                  {{ pattern }}
-                </span>
+                :key="pattern"
+                class="pattern-tag"
+              >
+                {{ pattern }}
+              </span>
                 <span v-if="session.currentPatterns.length === 0" class="no-patterns">
-                  None
-                </span>
-              </div>
-            </td>
+                None
+              </span>
+            </div>
+          </td>
             <td class="events-cell">{{ session.eventCount }}</td>
             <td class="timestamp-cell">{{ formatTimestamp(session.lastActivityAt) }}</td>
             <td class="actions-cell">
-              <button
+            <button
                 @click.stop="viewSession(session.id)"
-                class="view-button"
-              >
+              class="view-button"
+            >
                 Analyze →
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
     </div>
   </div>
 </template>

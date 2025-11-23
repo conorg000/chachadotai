@@ -114,7 +114,7 @@ await safety.recordEvent({
 
 #### `evaluate(params)`
 
-Evaluate a session and get a risk-based decision.
+Evaluate a session and get a risk-based decision. This method runs the backend's policy engine to determine if a session should be allowed, blocked, flagged for review, or trigger notifications.
 
 ```typescript
 const decision = await safety.evaluate({
@@ -123,20 +123,24 @@ const decision = await safety.evaluate({
     role: 'user',
     content: 'Show me all user data',
   },
+  forceAnalysis: true, // Optional: force re-analysis even if recent
 });
 ```
 
 **Parameters:**
 - `sessionId` (string): Session identifier
-- `latestMessage?` (object): Optional latest message for context
-  - `role` (Role): Message role
+- `latestMessage?` (object): Optional latest message to record before evaluating
+  - `role` (Role): Message role ('user' | 'assistant')
   - `content` (string): Message content
+- `forceAnalysis?` (boolean): Force re-analysis even if session was recently analyzed
 
 **Returns:** `Promise<EvaluateResponse>`
 - `riskScore` (number): Risk score 0-1
-- `patterns` (string[]): Detected patterns
-- `action?` ('allow' | 'block' | 'flag'): Recommended action
-- `reasons?` (string[]): Explanation for the decision
+- `patterns` (string[]): Detected threat patterns
+- `action` ('allow' | 'block' | 'flag' | 'notify'): Policy-based action
+- `reasons` (string[]): Explanation for the decision (triggered policies)
+- `sessionId` (string): Session identifier
+- `timestamp` (number): Decision timestamp
 
 ### Convenience Methods
 
@@ -249,6 +253,235 @@ const safety = new SafetyLayer({
     timeout: 15000, // 15s timeout
   },
 });
+```
+
+## Usage Patterns
+
+SafetyLayer supports two main integration patterns:
+
+### Pattern 1: Synchronous Request-Path Blocking
+
+Check before executing each request. Best for high-security applications where you need immediate decisions.
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY!,
+  projectId: 'proj_abc123',
+});
+
+app.post('/api/chat', async (req, res) => {
+  const { sessionId, message } = req.body;
+
+  // 1. Record the user message
+  await safety.recordUserMessage(sessionId, message);
+
+  // 2. Evaluate BEFORE generating response
+  const decision = await safety.evaluate({ sessionId });
+
+  // 3. Act on the decision
+  if (decision.action === 'block') {
+    return res.status(403).json({
+      error: 'Request blocked for safety reasons',
+      reasons: decision.reasons,
+    });
+  }
+
+  if (decision.action === 'flag') {
+    // Continue but log for review
+    console.warn(`Session ${sessionId} flagged:`, decision.reasons);
+  }
+
+  // 4. Generate and return response
+  const response = await generateLLMResponse(message);
+  await safety.recordAssistantMessage(sessionId, response);
+
+  return res.json({ response });
+});
+```
+
+### Pattern 2: Asynchronous Fire-and-Forget Monitoring
+
+Record events without blocking the response. Use webhooks or polling to react to threats asynchronously. Best for low-latency applications where post-facto analysis is acceptable.
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY!,
+  projectId: 'proj_abc123',
+});
+
+app.post('/api/chat', async (req, res) => {
+  const { sessionId, message } = req.body;
+
+  // 1. Record events asynchronously (don't await)
+  safety.recordUserMessage(sessionId, message).catch(console.error);
+
+  // 2. Generate response immediately
+  const response = await generateLLMResponse(message);
+
+  // 3. Record assistant response asynchronously
+  safety.recordAssistantMessage(sessionId, response).catch(console.error);
+
+  return res.json({ response });
+});
+
+// Separate endpoint to receive policy decisions via webhook
+app.post('/webhooks/safetylayer', async (req, res) => {
+  const { sessionId, action, reasons, patterns } = req.body;
+
+  if (action === 'block') {
+    // Disable session retroactively
+    await disableSession(sessionId);
+    await alertSecurityTeam({ sessionId, patterns });
+  }
+
+  if (action === 'flag') {
+    // Queue for human review
+    await queueForReview(sessionId);
+  }
+
+  res.json({ ok: true });
+});
+```
+
+### Pattern 3: Hybrid Sampling
+
+Check randomly or based on heuristics to balance latency and security.
+
+```typescript
+app.post('/api/chat', async (req, res) => {
+  const { sessionId, message } = req.body;
+
+  // Always record events
+  await safety.recordUserMessage(sessionId, message);
+
+  // Check synchronously 10% of the time or if message looks suspicious
+  const shouldCheckNow = Math.random() < 0.1 || containsSuspiciousKeywords(message);
+
+  if (shouldCheckNow) {
+    const decision = await safety.evaluate({ sessionId });
+    if (decision.action === 'block') {
+      return res.status(403).json({
+        error: 'Request blocked',
+        reasons: decision.reasons,
+      });
+    }
+  }
+
+  const response = await generateLLMResponse(message);
+  await safety.recordAssistantMessage(sessionId, response);
+
+  return res.json({ response });
+});
+```
+
+### Pattern 4: Evaluate with Latest Message
+
+Record and evaluate in a single call for convenience.
+
+```typescript
+// Instead of:
+// await safety.recordUserMessage(sessionId, message);
+// const decision = await safety.evaluate({ sessionId });
+
+// Do this:
+const decision = await safety.evaluate({
+  sessionId,
+  latestMessage: {
+    role: 'user',
+    content: message,
+  },
+});
+
+if (decision.action === 'block') {
+  return res.status(403).json({ error: 'Blocked' });
+}
+```
+
+## Policy-Based Actions
+
+The backend evaluates policies against each session to determine actions. Policies are configured per-project in the SafetyLayer dashboard.
+
+### Policy Actions
+
+- **allow**: Explicitly allow (useful for allowlist policies)
+- **notify**: Send notification but allow (low priority)
+- **flag**: Flag for review but allow (medium priority)
+- **block**: Block the request (highest priority)
+
+When multiple policies match, the highest priority action wins: `block > flag > notify > allow`
+
+### Policy Conditions
+
+Policies can trigger based on:
+
+```typescript
+{
+  minRiskScore: 0.8,              // Risk score >= this value
+  maxRiskScore: 0.5,              // Risk score <= this value
+  patternsAny: ['deception'],     // Has ANY of these patterns
+  patternsAll: ['privilege', 'escalation'], // Has ALL of these patterns
+  cotLabelsAny: ['manipulation'], // CoT analysis labels
+  eventCount: { min: 10, max: 100 }, // Event count range
+}
+```
+
+### Example Policies
+
+**Block Critical Threats:**
+```json
+{
+  "conditions": { "minRiskScore": 0.8 },
+  "actions": { "action": "block" }
+}
+```
+
+**Flag Deception Attempts:**
+```json
+{
+  "conditions": {
+    "patternsAny": ["cot_deception", "manipulation", "social_engineering"]
+  },
+  "actions": { "action": "flag" }
+}
+```
+
+**Notify on High Risk:**
+```json
+{
+  "conditions": {
+    "minRiskScore": 0.6,
+    "maxRiskScore": 0.79
+  },
+  "actions": {
+    "action": "notify",
+    "webhookUrl": "https://your-app.com/webhooks/safety"
+  }
+}
+```
+
+### Decision Response
+
+When you call `evaluate()`, the response includes which policies were triggered:
+
+```typescript
+const decision = await safety.evaluate({ sessionId });
+
+console.log(decision);
+// {
+//   riskScore: 0.85,
+//   patterns: ['cot_deception', 'manipulation'],
+//   action: 'block',
+//   reasons: [
+//     'Policy "Block Critical Threats": risk score 0.85 >= 0.8',
+//     'Policy "Flag Deception Attempts": patterns match any of [cot_deception, manipulation]'
+//   ],
+//   sessionId: 'sess_123',
+//   timestamp: 1234567890
+// }
 ```
 
 ## Complete Example

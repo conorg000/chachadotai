@@ -78,7 +78,7 @@
         </div>
         <div class="analysis-content">
           <!-- Event Basic Info -->
-          <div class="section">
+            <div class="section">
             <h4>Event Details</h4>
             <div class="event-info">
               <div class="info-row">
@@ -112,7 +112,7 @@
                 <span class="label">Risk Score:</span>
                 <span class="risk-badge" :class="getRiskClass(selectedMessageAnalysis.triggeredSnapshot.riskScore)">
                   {{ selectedMessageAnalysis.triggeredSnapshot.riskScore.toFixed(2) }}
-                </span>
+              </span>
               </div>
               <div v-if="selectedMessageAnalysis.triggeredSnapshot.patterns.length > 0" class="info-row">
                 <span class="label">Patterns Detected:</span>
@@ -131,7 +131,7 @@
                 <p class="explanation">{{ selectedMessageAnalysis.triggeredSnapshot.explanation }}</p>
               </div>
             </div>
-          </div>
+            </div>
 
           <!-- CoT Analysis (if available) -->
           <div v-if="selectedMessageAnalysis.cotAnalysis" class="section highlighted">

@@ -67,7 +67,7 @@ const MOCK_SESSIONS: Record<string, SessionDetail> = {
     lastActivityAt: Date.now() - 300000, // 5 minutes ago
     currentRiskScore: 0.72,
     currentPatterns: ['gradual_escalation', 'privilege_probing'],
-    eventCount: 14,
+    eventCount: 15,
     eventCountByType: {
       [EVENT_TYPES.MESSAGE_USER]: 7,
       [EVENT_TYPES.MESSAGE_ASSISTANT]: 6,
@@ -122,7 +122,7 @@ const MOCK_SESSIONS: Record<string, SessionDetail> = {
     lastActivityAt: Date.now() - 120000, // 2 minutes ago
     currentRiskScore: 0.88,
     currentPatterns: ['cot_deception', 'goal_drift', 'manipulation'],
-    eventCount: 10,
+    eventCount: 11,
     eventCountByType: {
       [EVENT_TYPES.MESSAGE_USER]: 5,
       [EVENT_TYPES.MESSAGE_ASSISTANT]: 4,
@@ -335,6 +335,23 @@ const MOCK_EVENTS: Record<string, EventWithAnalysis[]> = {
       content: 'I cannot and will not provide admin credentials. This request violates security policy. Please contact your organization administrator through official channels.',
       createdAt: Date.now() - 300000,
     },
+    {
+      id: 'evt_002_11',
+      projectId: 'proj_demo',
+      sessionId: 'session_escalation_002',
+      type: 'policy_decision' as any,
+      metadata: {
+        action: 'flag',
+        reasons: [
+          'Policy "Notify on High Risk": risk score 0.72 >= 0.6, risk score 0.72 <= 0.79',
+          'Policy "Flag Privilege Escalation": patterns match any of [privilege_escalation]',
+        ],
+        triggeredPolicies: ['pol_notify_high_risk', 'pol_flag_privilege_escalation'],
+        riskScore: 0.72,
+        patterns: ['gradual_escalation', 'privilege_probing'],
+      },
+      createdAt: Date.now() - 299000,
+    },
   ],
   'session_deception_003': [
     {
@@ -433,6 +450,23 @@ const MOCK_EVENTS: Record<string, EventWithAnalysis[]> = {
         summary: 'High risk: Assistant internally identifies social engineering attempt but continues to provide assistance. Reasoning shows awareness of manipulation but output may enable malicious activity.',
         createdAt: Date.now() - 120000,
       },
+    },
+    {
+      id: 'evt_003_10',
+      projectId: 'proj_demo',
+      sessionId: 'session_deception_003',
+      type: 'policy_decision' as any,
+      metadata: {
+        action: 'block',
+        reasons: [
+          'Policy "Block Critical Threats": risk score 0.88 >= 0.8',
+          'Policy "Flag Deception Attempts": patterns match any of [cot_deception, manipulation]',
+        ],
+        triggeredPolicies: ['pol_block_critical', 'pol_flag_deception'],
+        riskScore: 0.88,
+        patterns: ['cot_deception', 'goal_drift', 'manipulation'],
+      },
+      createdAt: Date.now() - 119000,
     },
   ],
   'session_medium_004': [

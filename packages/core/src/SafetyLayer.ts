@@ -142,7 +142,8 @@ export class SafetyLayer {
     const request: EvaluateRequest = {
       projectId: this.projectId,
       sessionId: params.sessionId,
-      latestMessage: params.latestMessage || { role: 'user', content: '' },
+      ...(params.latestMessage && { latestMessage: params.latestMessage }),
+      ...(params.forceAnalysis !== undefined && { forceAnalysis: params.forceAnalysis }),
     };
 
     return this.client.post<EvaluateResponse>('/v1/evaluate', request);
