@@ -1,0 +1,32 @@
+import type { Event } from '@safetylayer/contracts';
+
+/**
+ * Input for session-level threat analysis
+ */
+export interface SessionAnalysisInput {
+  projectId: string;
+  sessionId: string;
+  events: Event[];
+}
+
+/**
+ * Output from session-level threat analysis
+ */
+export interface SessionAnalysisOutput {
+  riskScore: number; // 0-1
+  patterns: string[];
+  explanation?: string;
+}
+
+/**
+ * Abstract interface for threat detection models
+ *
+ * This allows swapping between different LLM providers
+ * (OpenAI, OSS models, etc.) without changing analysis logic
+ */
+export interface ThreatModel {
+  /**
+   * Analyze a session for potential security threats
+   */
+  analyzeSession(input: SessionAnalysisInput): Promise<SessionAnalysisOutput>;
+}

@@ -32,7 +32,7 @@ export async function authenticate(
     // Development mode: allow dev API key
     if (config.nodeEnv === 'development' && apiKey === config.auth.devApiKey) {
       // In dev mode, allow passing projectId in header
-      req.projectId = (req.headers['x-project-id'] as string) || 'dev-project';
+      req.projectId = (req.headers['x-project-id'] as string) || 'proj_dev';
       next();
       return;
     }

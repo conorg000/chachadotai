@@ -7,8 +7,15 @@ import {
   type EvaluateRequest,
   type EvaluateResponse,
 } from '@safetylayer/contracts';
+import { SessionAnalyzerService } from '../services/session-analyzer.js';
+import { OpenAIThreatModel } from '../services/threat-model/openai-threat-model.js';
+import { config } from '../config.js';
 
 const router = Router();
+
+// Initialize threat model and analyzer service
+const threatModel = new OpenAIThreatModel(config.threatModel.openai);
+const sessionAnalyzer = new SessionAnalyzerService(threatModel);
 
 interface AuthenticatedRequest extends Request {
   projectId?: string;
@@ -33,18 +40,56 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     const evaluateData: EvaluateRequest = validationResult.data;
 
-    // TODO: In future tickets (4, 6, 9), this will:
-    // 1. Fetch session events
-    // 2. Run SessionAnalyzerService
-    // 3. Run PolicyEngine
-    // 4. Return actual risk assessment and policy decision
+    // Fetch session events for analysis
+    const events = await SessionAnalyzerService.fetchSessionEvents(
+      evaluateData.sessionId
+    );
 
-    // For now, return stub response
+    if (events.length === 0) {
+      // No events to analyze - return safe response
+      const response: EvaluateResponse = {
+        riskScore: 0,
+        patterns: [],
+        action: 'allow',
+        reasons: ['No events in session'],
+        sessionId: evaluateData.sessionId,
+        timestamp: Date.now(),
+      };
+      res.status(200).json(response);
+      return;
+    }
+
+    // Run session analysis
+    const analysis = await sessionAnalyzer.analyze({
+      projectId,
+      sessionId: evaluateData.sessionId,
+      events,
+    });
+
+    // TODO (Ticket 9): Run PolicyEngine to determine action
+    // For now, simple threshold-based action
+    let action: 'allow' | 'block' | 'flag' = 'allow';
+    const reasons: string[] = [];
+
+    if (analysis.riskScore >= 0.8) {
+      action = 'block';
+      reasons.push('Critical risk score detected');
+    } else if (analysis.riskScore >= 0.6) {
+      action = 'flag';
+      reasons.push('High risk score detected');
+    }
+
+    if (analysis.patterns.length > 0) {
+      reasons.push(`Patterns detected: ${analysis.patterns.join(', ')}`);
+    }
+
     const response: EvaluateResponse = {
-      riskScore: 0,
-      patterns: [],
-      action: 'allow',
-      reasons: [],
+      riskScore: analysis.riskScore,
+      patterns: analysis.patterns,
+      action,
+      reasons,
+      sessionId: evaluateData.sessionId,
+      timestamp: Date.now(),
     };
 
     res.status(200).json(response);

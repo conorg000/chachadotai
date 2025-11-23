@@ -18,4 +18,14 @@ export const config = {
     // For development: allow bypassing auth with this key
     devApiKey: process.env.DEV_API_KEY || 'dev-key-12345',
   },
+
+  threatModel: {
+    provider: (process.env.THREAT_MODEL_PROVIDER || 'openai') as 'openai' | 'mock',
+    openai: {
+      apiKey: process.env.OPENAI_API_KEY || '',
+      model: process.env.OPENAI_MODEL || 'gpt-4',
+      timeout: parseInt(process.env.OPENAI_TIMEOUT || '30000', 10),
+      maxEventsToAnalyze: parseInt(process.env.MAX_EVENTS_TO_ANALYZE || '50', 10),
+    },
+  },
 };
