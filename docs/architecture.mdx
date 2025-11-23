@@ -137,8 +137,6 @@ The ChaCha backend provides REST endpoints for event ingestion, risk evaluation,
     - `policy_decision` - Policy outcomes
   </Accordion>
 
-{" "}
-
 <Accordion title="Risk Evaluation (POST /v1/evaluate)" icon="scale-balanced">
   Evaluates session risk and returns policy decisions. **Flow:** 1. Fetch
   session events from DB 2. Run Session Analyzer 3. Run CoT Analyzer (if
@@ -176,15 +174,24 @@ ChaCha's backend services perform sophisticated safety analysis using LLM-powere
   </Card>
 
   <Card title="CoT Analyzer" icon="brain">
-    **Reasoning Plane Analysis** **Purpose:** Examines chain-of-thought
-    reasoning to detect: - Deceptive reasoning - Goal drift from intended
-    purpose - Policy evasion attempts - Hidden malicious intent - Manipulation
-    tactics **How it works:** 1. Receives CoT event from SDK 2. Extracts
-    reasoning text + context (userInput, finalOutput) 3. Sends to threat model
-    for analysis 4. LLM identifies concerning patterns in reasoning 5. Returns
-    labels, indicators, and risk score 6. Stores analysis in event metadata
-    **Implementation:** Uses `CoTAnalyzerService` to enrich CoT events with
-    analysis results stored in JSONB metadata
+    **Reasoning Plane Analysis**
+    
+    **Purpose:** Examines chain-of-thought reasoning to detect:
+    - Deceptive reasoning
+    - Goal drift from intended purpose
+    - Policy evasion attempts
+    - Hidden malicious intent
+    - Manipulation tactics
+    
+    **How it works:**
+    1. Receives CoT event from SDK
+    2. Extracts reasoning text + context (userInput, finalOutput)
+    3. Sends to threat model for analysis
+    4. LLM identifies concerning patterns in reasoning
+    5. Returns labels, indicators, and risk score
+    6. Stores analysis in event metadata
+    
+    **Implementation:** Uses `CoTAnalyzerService` to enrich CoT events with analysis results stored in JSONB metadata
   </Card>
 </CardGroup>
 
@@ -268,8 +275,6 @@ Tracks patterns across multi-turn conversations to detect:
     Session-aware analysis catches this progression.
   </Accordion>
 
-{" "}
-
 <Accordion title="Reconnaissance" icon="magnifying-glass">
   Information gathering attempts: - System probing questions - Architecture
   queries - Permission testing - Boundary exploration
@@ -305,8 +310,6 @@ Examines LLM reasoning to detect safety issues:
     
     Pattern detected: `cot_deception`
   </Accordion>
-
-{" "}
 
 <Accordion title="Goal Drift" icon="compass">
   When model shifts away from intended purpose: ``` CoT: "This violates policy,
@@ -346,16 +349,12 @@ The ChaCha dashboard provides real-time visibility into all sessions, threats, a
     sorting
   </Card>
 
-{" "}
-
 <Card title="Session Detail View" icon="magnifying-glass-chart">
   **Deep Dive into Sessions** - Risk timeline chart showing progression -
   Complete conversation history - Click any message for detailed analysis - CoT
   analysis results with labels and indicators - Risk snapshots at each
   evaluation point - Pattern detection explanations
 </Card>
-
-{" "}
 
 <Card title="Event Analysis Modal" icon="microscope">
   **Detailed Event Inspection** - Event metadata and timestamps - Triggered risk
@@ -432,16 +431,12 @@ All endpoints require Bearer token authentication with your project API key.
     Isolates data between different projects
   </Card>
 
-{" "}
-
 <Card title="Sessions" icon="comments">
   **Conversation Tracking** - `id`: Session identifier - `project_id`: Parent
   project - `current_risk_score`: Latest risk (0-1) - `current_patterns`: Array
   of patterns - `last_activity_at`: Last event timestamp Tracks state of each
   conversation
 </Card>
-
-{" "}
 
 <Card title="Events" icon="list">
   **All Recorded Events** - `id`: Event identifier - `session_id`: Parent
@@ -476,14 +471,10 @@ All endpoints require Bearer token authentication with your project API key.
     - Easy to add workers
   </Accordion>
 
-{" "}
-
 <Accordion title="Horizontal Scaling" icon="arrows-left-right">
   Backend API servers are stateless: - Add more instances as needed - Load
   balancer distributes traffic - Database handles state
 </Accordion>
-
-{" "}
 
 <Accordion title="Analysis Workers" icon="gears">
   Analysis can be offloaded to workers: - Queue events for processing - Scale
@@ -506,19 +497,15 @@ All endpoints require Bearer token authentication with your project API key.
     rotation support
   </Card>
 
-{" "}
+  <Card title="Data Isolation" icon="lock">
+    Multi-tenant security: - Project-scoped queries - Row-level security - No
+    cross-project access
+  </Card>
 
-<Card title="Data Isolation" icon="lock">
-  Multi-tenant security: - Project-scoped queries - Row-level security - No
-  cross-project access
-</Card>
-
-{" "}
-
-<Card title="Analysis Privacy" icon="shield">
-  Sensitive analysis logic: - Runs on your servers - Custom models supported -
-  No third-party sharing
-</Card>
+  <Card title="Analysis Privacy" icon="shield">
+    Sensitive analysis logic: - Runs on your servers - Custom models supported -
+    No third-party sharing
+  </Card>
 
   <Card title="Data Retention" icon="clock">
     Configurable policies: - Session TTL settings - Auto-cleanup old data -
@@ -536,14 +523,10 @@ All endpoints require Bearer token authentication with your project API key.
     - Air-gapped environments
   </Step>
 
-{" "}
-
 <Step title="Real-Time Streaming">
   WebSocket support for live monitoring: - Real-time risk updates - Live
   dashboard feeds - Instant alerts
 </Step>
-
-{" "}
 
 <Step title="Advanced Policies">
   Sophisticated rule engine: - Complex conditions - Multi-factor decisions -
@@ -666,8 +649,6 @@ interface ThreatModel {
     Complete SDK reference
   </Card>
 
-{" "}
-
 <Card
   title="Backend Integration"
   icon="server"
@@ -675,8 +656,6 @@ interface ThreatModel {
 >
   Connect to ChaCha backend
 </Card>
-
-{" "}
 
 <Card title="Data Contracts" icon="file-contract" href="/api-reference/types">
   API types and schemas
