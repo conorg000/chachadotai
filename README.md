@@ -24,12 +24,12 @@ The comprehensive documentation includes:
 
 This monorepo contains the following components:
 
-### Current Architecture (Transformation in Progress)
+### Current Architecture
 
 - **@safetylayer/contracts** (`packages/contracts/`) - Shared TypeScript types and API contracts
 - **@safetylayer/core** (`packages/core/`) - Core SDK for integrating applications with ChaCha
 - **Dashboard** (`apps/dashboard/`) - Vue.js frontend for visualizing risk metrics
-- **Backend API** (`apps/backend/`) - **NEW** Control-plane backend with PostgreSQL
+- **Backend API** (`apps/backend/`) - Control-plane backend with PostgreSQL
 
 ## Quick Start
 
