@@ -14,17 +14,73 @@ import type { Request, Response } from "express";
 import { Router } from "express";
 import { query } from "../db/connection.js";
 import { CoTAnalyzerService } from '../services/cot-analyzer.js';
+import { SessionAnalyzerService } from '../services/session-analyzer.js';
 import { OpenAIThreatModel } from '../services/threat-model/openai-threat-model.js';
 import { config } from '../config.js';
 
 const router = Router();
 
-// Initialize CoT analyzer service
+// Initialize threat model and analyzer services
 const threatModel = new OpenAIThreatModel(config.threatModel.openai);
 const cotAnalyzer = new CoTAnalyzerService(threatModel);
+const sessionAnalyzer = new SessionAnalyzerService(threatModel);
 
 interface AuthenticatedRequest extends Request {
   projectId?: string;
+}
+
+/**
+ * Trigger analysis for a new event (async, non-blocking)
+ *
+ * This function runs in the background and performs:
+ * 1. CoT analysis (if event is CoT type)
+ * 2. Session analysis (for all events)
+ */
+async function triggerEventAnalysis(
+  projectId: string,
+  sessionId: string,
+  eventId: string,
+  eventType: EventType,
+  eventContent?: string,
+  eventMetadata?: Record<string, any>
+): Promise<void> {
+  try {
+    // Step 1: If this is a CoT event, analyze it
+    if (config.analysis.enableCoTAnalysis && eventType === 'cot' && eventContent) {
+      console.log(`[Analysis] Starting CoT analysis for event ${eventId}`);
+      await cotAnalyzer.analyze({
+        projectId,
+        sessionId,
+        eventId,
+        rawCoT: eventContent,
+        context: {
+          lastUserMessage: eventMetadata?.userInput,
+          answer: eventMetadata?.finalOutput,
+        },
+      });
+      console.log(`[Analysis] CoT analysis completed for event ${eventId}`);
+    }
+
+    // Step 2: Run session analysis for all events
+    if (config.analysis.enableSessionAnalysis) {
+      console.log(`[Analysis] Starting session analysis for session ${sessionId}`);
+
+      // Fetch recent events for the session
+      const events = await SessionAnalyzerService.fetchSessionEvents(sessionId);
+
+      if (events.length > 0) {
+        await sessionAnalyzer.analyze({
+          projectId,
+          sessionId,
+          events,
+        });
+        console.log(`[Analysis] Session analysis completed for session ${sessionId} (${events.length} events)`);
+      }
+    }
+  } catch (error) {
+    console.error(`[Analysis] Analysis failed for event ${eventId}:`, error);
+    // Don't throw - we don't want to crash the event recording
+  }
 }
 
 // POST /v1/events - Record a new event
@@ -73,24 +129,18 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
       ]
     );
 
-    // If this is a CoT event, analyze it asynchronously
-    if (eventData.type === 'cot' && eventData.content) {
-      // Run CoT analysis in background (don't await to avoid blocking response)
-      cotAnalyzer
-        .analyze({
-          projectId,
-          sessionId: eventData.sessionId,
-          eventId,
-          rawCoT: eventData.content,
-          context: {
-            lastUserMessage: eventData.metadata?.userInput,
-            answer: eventData.metadata?.finalOutput,
-          },
-        })
-        .catch((error) => {
-          console.error('CoT analysis failed for event', eventId, error);
-        });
-    }
+    // Trigger analysis asynchronously (don't await to avoid blocking response)
+    triggerEventAnalysis(
+      projectId,
+      eventData.sessionId,
+      eventId,
+      eventData.type,
+      eventData.content,
+      eventData.metadata
+    ).catch((error) => {
+      // This should never happen since triggerEventAnalysis catches all errors
+      console.error('[Analysis] Unexpected error in analysis pipeline:', error);
+    });
 
     const response: RecordEventResponse = {
       ok: true,

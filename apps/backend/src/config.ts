@@ -28,4 +28,14 @@ export const config = {
       maxEventsToAnalyze: parseInt(process.env.MAX_EVENTS_TO_ANALYZE || '50', 10),
     },
   },
+
+  analysis: {
+    // Whether to run analysis synchronously (blocks response) or asynchronously (background)
+    // 'async' is recommended for production to avoid blocking event recording
+    strategy: (process.env.ANALYSIS_STRATEGY || 'async') as 'sync' | 'async',
+    // Whether to run session analysis on every event (can be expensive)
+    enableSessionAnalysis: process.env.ENABLE_SESSION_ANALYSIS !== 'false',
+    // Whether to run CoT analysis on CoT events
+    enableCoTAnalysis: process.env.ENABLE_COT_ANALYSIS !== 'false',
+  },
 };
