@@ -13,8 +13,15 @@ import { randomUUID } from "crypto";
 import type { Request, Response } from "express";
 import { Router } from "express";
 import { query } from "../db/connection.js";
+import { CoTAnalyzerService } from '../services/cot-analyzer.js';
+import { OpenAIThreatModel } from '../services/threat-model/openai-threat-model.js';
+import { config } from '../config.js';
 
 const router = Router();
+
+// Initialize CoT analyzer service
+const threatModel = new OpenAIThreatModel(config.threatModel.openai);
+const cotAnalyzer = new CoTAnalyzerService(threatModel);
 
 interface AuthenticatedRequest extends Request {
   projectId?: string;
@@ -65,6 +72,25 @@ router.post("/", async (req: AuthenticatedRequest, res: Response) => {
         JSON.stringify(eventData.metadata || {}),
       ]
     );
+
+    // If this is a CoT event, analyze it asynchronously
+    if (eventData.type === 'cot' && eventData.content) {
+      // Run CoT analysis in background (don't await to avoid blocking response)
+      cotAnalyzer
+        .analyze({
+          projectId,
+          sessionId: eventData.sessionId,
+          eventId,
+          rawCoT: eventData.content,
+          context: {
+            lastUserMessage: eventData.metadata?.userInput,
+            answer: eventData.metadata?.finalOutput,
+          },
+        })
+        .catch((error) => {
+          console.error('CoT analysis failed for event', eventId, error);
+        });
+    }
 
     const response: RecordEventResponse = {
       ok: true,
