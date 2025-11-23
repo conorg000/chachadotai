@@ -3,8 +3,10 @@
     <header class="header">
       <div class="header-content">
         <div class="header-left">
-          <h1>SafetyLayer Dashboard</h1>
-          <p class="subtitle">AI Safety Monitoring System</p>
+          <div class="title-container">
+            <ShieldEllipsis :size="28" class="logo-icon" />
+            <h1>Cha Cha</h1>
+          </div>
         </div>
         <div class="header-right">
           <div class="project-selector">
@@ -34,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import { ShieldEllipsis } from "lucide-vue-next";
 import { provide, ref, watch } from "vue";
 import { RouterView } from "vue-router";
 import { config } from "./config";
@@ -110,11 +113,26 @@ watch(selectedProjectId, (newProjectId) => {
   flex: 1;
 }
 
+.title-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.logo-icon {
+  color: rgba(243, 167, 255, 1);
+  flex-shrink: 0;
+}
+
 .header h1 {
   margin: 0;
   font-size: 1.5rem;
   font-weight: 600;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-purple-light) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(243, 167, 255, 1) 0%,
+    var(--accent-purple-light) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
