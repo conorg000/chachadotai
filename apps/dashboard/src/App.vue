@@ -71,29 +71,30 @@ watch(selectedProjectId, (newProjectId) => {
 .header {
   position: relative;
   background: var(--glass-bg);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--glass-border);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  padding: 1.5rem 2rem;
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.5);
+  padding: 1.25rem 2rem;
   z-index: 100;
 }
 
-/* Neon accent line at bottom */
+/* Subtle accent line at bottom */
 .header::after {
   content: "";
   position: absolute;
   bottom: 0;
   left: 0;
   width: 100%;
-  height: 2px;
+  height: 1px;
   background: linear-gradient(
     90deg,
-    var(--accent-cyan) 0%,
-    var(--accent-purple) 100%
+    transparent 0%,
+    var(--accent-purple) 30%,
+    var(--accent-pink) 70%,
+    transparent 100%
   );
-  box-shadow: 0 0 20px var(--accent-cyan), 0 0 40px var(--accent-purple);
-  animation: pulse-glow 3s ease-in-out infinite;
+  opacity: 0.5;
 }
 
 .header-content {
@@ -111,29 +112,21 @@ watch(selectedProjectId, (newProjectId) => {
 
 .header h1 {
   margin: 0;
-  font-size: 2.5rem;
-  font-weight: 800;
-  background: linear-gradient(
-    135deg,
-    var(--accent-cyan) 0%,
-    var(--accent-purple) 100%
-  );
+  font-size: 1.5rem;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--accent-purple-light) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.02em;
-  text-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
-  filter: drop-shadow(0 0 10px rgba(0, 212, 255, 0.5));
+  letter-spacing: -0.01em;
 }
 
 .header .subtitle {
-  margin: 0.5rem 0 0 0;
+  margin: 0.375rem 0 0 0;
   color: var(--text-secondary);
-  font-size: 1rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  opacity: 0.8;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 .header-right {
@@ -146,54 +139,49 @@ watch(selectedProjectId, (newProjectId) => {
   align-items: center;
   gap: 0.75rem;
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 0.75rem 1.25rem;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 0.625rem 1rem;
   border-radius: 12px;
   border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-shadow);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .project-selector:hover {
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan), var(--glass-shadow);
-  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(147, 51, 234, 0.3);
+  background: var(--glass-bg-hover);
 }
 
 .project-selector label {
-  font-size: 0.85rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 500;
   color: var(--text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
 
 .project-select {
-  background: rgba(0, 212, 255, 0.1);
+  background: rgba(147, 51, 234, 0.08);
   color: var(--text-primary);
-  border: 1px solid var(--accent-cyan);
+  border: 1px solid rgba(147, 51, 234, 0.3);
   padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
   cursor: pointer;
   min-width: 180px;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: inset 0 0 10px rgba(0, 212, 255, 0.2);
 }
 
 .project-select:hover {
-  background: rgba(0, 212, 255, 0.15);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 212, 255, 0.3);
-  transform: scale(1.02);
+  background: rgba(147, 51, 234, 0.12);
+  border-color: var(--accent-purple);
 }
 
 .project-select:focus {
   outline: none;
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.3), var(--glow-cyan);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 0 3px rgba(147, 51, 234, 0.2);
 }
 
 .project-select option {

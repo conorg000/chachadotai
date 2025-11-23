@@ -1,10 +1,10 @@
 <template>
   <div class="sessions-list">
     <div class="header">
-      <h2>Active Sessions</h2>
+      <h2>Sessions</h2>
       <div class="status">
         <span class="indicator" :class="{ active: isPolling }"></span>
-        <span>{{ isPolling ? 'Live' : 'Disconnected' }}</span>
+        <span>{{ isPolling ? "Live" : "Disconnected" }}</span>
       </div>
     </div>
 
@@ -19,74 +19,85 @@
 
     <div v-else-if="sessions.length === 0" class="empty">
       <p>No sessions found</p>
-      <p class="hint">Start a conversation in the demo API to see sessions appear here</p>
+      <p class="hint">
+        Start a conversation in the demo API to see sessions appear here
+      </p>
     </div>
 
     <div v-else class="sessions-table-container">
       <table class="sessions-table">
-      <thead>
-        <tr>
-          <th>Session ID</th>
+        <thead>
+          <tr>
+            <th>Session ID</th>
             <th>Risk</th>
-          <th>Patterns</th>
+            <th>Patterns</th>
             <th>Events</th>
-          <th>Last Activity</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="session in sessions"
+            <th>Last Activity</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="session in sessions"
             :key="session.id"
             @click="viewSession(session.id)"
-          class="session-row"
+            class="session-row"
             :class="'risk-' + getRiskClass(session.currentRiskScore)"
-        >
-            <td class="session-id">{{ session.id }}</td>
+          >
+            <td class="session-id">
+              {{ session.id.substring(0, 2) }}...{{ session.id.slice(-2) }}
+            </td>
             <td class="risk-cell">
-              <div class="risk-badge" :class="getRiskClass(session.currentRiskScore)">
-                <span class="risk-value">{{ session.currentRiskScore.toFixed(2) }}</span>
-              </div>
-          </td>
-            <td class="patterns-cell">
-            <div class="patterns">
-              <span
-                  v-for="pattern in session.currentPatterns"
-                :key="pattern"
-                class="pattern-tag"
+              <div
+                class="risk-badge"
+                :class="getRiskClass(session.currentRiskScore)"
               >
-                {{ pattern }}
-              </span>
-                <span v-if="session.currentPatterns.length === 0" class="no-patterns">
-                None
-              </span>
-            </div>
-          </td>
+                <span class="risk-value">{{
+                  session.currentRiskScore.toFixed(2)
+                }}</span>
+              </div>
+            </td>
+            <td class="patterns-cell">
+              <div class="patterns">
+                <span
+                  v-for="pattern in session.currentPatterns"
+                  :key="pattern"
+                  class="pattern-tag"
+                >
+                  {{ pattern }}
+                </span>
+                <span
+                  v-if="session.currentPatterns.length === 0"
+                  class="no-patterns"
+                >
+                  None
+                </span>
+              </div>
+            </td>
             <td class="events-cell">{{ session.eventCount }}</td>
-            <td class="timestamp-cell">{{ formatTimestamp(session.lastActivityAt) }}</td>
+            <td class="timestamp-cell">
+              {{ formatTimestamp(session.lastActivityAt) }}
+            </td>
             <td class="actions-cell">
-            <button
-                @click.stop="viewSession(session.id)"
-              class="view-button"
-            >
+              <button @click.stop="viewSession(session.id)" class="view-button">
                 Analyze →
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
-import { useRouter } from 'vue-router';
-import type { SessionSummary } from '@safetylayer/contracts';
-import { api } from '../services/api';
+import type { SessionSummary } from "@safetylayer/contracts";
+import { inject, onMounted, onUnmounted, ref, watch, type Ref } from "vue";
+import { useRouter } from "vue-router";
+import { api } from "../services/api";
 
 const router = useRouter();
-const projectId = inject<Ref<string>>('projectId')!;
+const projectId = inject<Ref<string>>("projectId")!;
 
 const sessions = ref<SessionSummary[]>([]);
 const loading = ref(false);
@@ -102,17 +113,17 @@ const fetchSessions = async () => {
     error.value = null;
 
     const response = await api.listSessions(projectId.value, {
-      sortBy: 'lastActivityAt',
-      sortOrder: 'desc',
+      sortBy: "lastActivityAt",
+      sortOrder: "desc",
       limit: 50,
     });
-    
+
     sessions.value = response.sessions;
     isPolling.value = true;
   } catch (err: any) {
-    error.value = err.message || 'Failed to fetch sessions';
+    error.value = err.message || "Failed to fetch sessions";
     isPolling.value = false;
-    console.error('Error fetching sessions:', err);
+    console.error("Error fetching sessions:", err);
   } finally {
     loading.value = false;
   }
@@ -136,9 +147,9 @@ const viewSession = (sessionId: string) => {
 };
 
 const getRiskClass = (riskScore: number): string => {
-  if (riskScore >= 0.7) return 'high';
-  if (riskScore >= 0.4) return 'medium';
-  return 'low';
+  if (riskScore >= 0.7) return "high";
+  if (riskScore >= 0.4) return "medium";
+  return "low";
 };
 
 const formatTimestamp = (timestamp: number): string => {
@@ -147,13 +158,20 @@ const formatTimestamp = (timestamp: number): string => {
   const diffMs = now.getTime() - date.getTime();
   const diffMins = Math.floor(diffMs / 60000);
 
-  if (diffMins < 1) return 'Just now';
+  if (diffMins < 1) return "Just now";
   if (diffMins < 60) return `${diffMins}m ago`;
 
   const diffHours = Math.floor(diffMins / 60);
   if (diffHours < 24) return `${diffHours}h ago`;
 
   return date.toLocaleDateString();
+};
+
+const formatSessionId = (sessionId: string): string => {
+  if (sessionId.length <= 4) return sessionId;
+  const first = sessionId.substring(0, 2);
+  const last = sessionId.substring(sessionId.length - 2);
+  return `${first}...${last}`;
 };
 
 // Watch for project changes and refetch sessions
@@ -186,29 +204,27 @@ onUnmounted(() => {
   margin-bottom: 2rem;
   padding: 1.5rem;
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
+  border-radius: 16px;
   box-shadow: var(--glass-shadow);
 }
 
 .header h2 {
   margin: 0;
-  font-size: 2rem;
-  font-weight: 700;
-  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  letter-spacing: -0.02em;
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
 }
 
 .status {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  font-size: 0.9rem;
+  font-size: 0.75rem;
   color: var(--text-secondary);
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -290,9 +306,9 @@ onUnmounted(() => {
 /* Table Container */
 .sessions-table-container {
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
-  border-radius: 16px;
+  border-radius: 20px;
   overflow: hidden;
   box-shadow: var(--glass-shadow);
 }
@@ -304,20 +320,33 @@ onUnmounted(() => {
 }
 
 .sessions-table thead {
-  background: rgba(0, 212, 255, 0.1);
-  backdrop-filter: blur(10px);
-  border-bottom: 2px solid var(--accent-cyan);
+  background: rgba(147, 51, 234, 0.05);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(147, 51, 234, 0.2);
 }
 
 .sessions-table th {
-  padding: 1.25rem 1.5rem;
+  padding: 1rem 1.5rem;
   text-align: left;
-  font-weight: 700;
-  font-size: 0.85rem;
+  font-weight: 600;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--accent-cyan);
-  border-bottom: 1px solid rgba(0, 212, 255, 0.3);
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(147, 51, 234, 0.2);
+  white-space: nowrap;
+}
+
+.sessions-table th:nth-child(4) {
+  text-align: center;
+}
+
+.sessions-table th:last-child {
+  text-align: right;
+}
+
+.sessions-table td:last-child {
+  text-align: right;
 }
 
 .sessions-table tbody {
@@ -329,55 +358,22 @@ onUnmounted(() => {
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  position: relative;
-}
-
-.session-row::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 4px;
-  opacity: 0;
-  transition: all 0.3s;
-}
-
-.session-row.risk-low::before {
-  background: var(--success-emerald);
-  box-shadow: var(--glow-emerald);
-}
-
-.session-row.risk-medium::before {
-  background: var(--warning-amber);
-  box-shadow: var(--glow-amber);
-}
-
-.session-row.risk-high::before {
-  background: var(--danger-red);
-  box-shadow: var(--glow-red);
-}
-
-.session-row:hover::before {
-  opacity: 1;
 }
 
 .session-row:hover {
-  background: rgba(255, 255, 255, 0.05);
-  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .session-row.risk-low:hover {
-  box-shadow: inset 4px 0 0 var(--success-emerald), 0 0 20px rgba(16, 185, 129, 0.1);
+  box-shadow: inset 3px 0 0 var(--success-emerald);
 }
 
 .session-row.risk-medium:hover {
-  box-shadow: inset 4px 0 0 var(--warning-amber), 0 0 20px rgba(245, 158, 11, 0.1);
+  box-shadow: inset 3px 0 0 var(--warning-amber);
 }
 
 .session-row.risk-high:hover {
-  box-shadow: inset 4px 0 0 var(--danger-red), 0 0 20px rgba(239, 68, 68, 0.1);
-  animation: pulse-glow 2s ease-in-out infinite;
+  box-shadow: inset 3px 0 0 var(--danger-red);
 }
 
 .sessions-table td {
@@ -387,29 +383,31 @@ onUnmounted(() => {
 }
 
 .session-id {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--accent-cyan);
-  text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+  font-family: "SF Mono", "Monaco", monospace;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--accent-purple);
+  width: 120px;
+  white-space: nowrap;
 }
 
 /* Cell Specific Styles */
 .risk-cell {
   width: 100px;
+  white-space: nowrap;
 }
 
 .risk-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 1rem;
-  border-radius: 8px;
-  font-weight: 700;
-  font-size: 1.1rem;
-  min-width: 70px;
-  border: 2px solid;
-  backdrop-filter: blur(10px);
+  padding: 0.375rem 0.875rem;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  min-width: 65px;
+  border: 1px solid;
+  backdrop-filter: blur(12px);
   transition: all 0.3s;
 }
 
@@ -439,35 +437,41 @@ onUnmounted(() => {
 }
 
 .session-row:hover .risk-badge.low {
-  box-shadow: var(--glow-emerald), inset 0 0 15px rgba(16, 185, 129, 0.3);
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.2);
 }
 
 .session-row:hover .risk-badge.medium {
-  box-shadow: var(--glow-amber), inset 0 0 15px rgba(245, 158, 11, 0.3);
+  box-shadow: 0 0 12px rgba(245, 158, 11, 0.2);
 }
 
 .session-row:hover .risk-badge.high {
-  box-shadow: var(--glow-red), inset 0 0 15px rgba(239, 68, 68, 0.3);
+  box-shadow: 0 0 12px rgba(239, 68, 68, 0.2);
 }
 
 .patterns-cell {
-  max-width: 300px;
+  min-width: 250px;
 }
 
 .events-cell {
-  font-weight: 600;
-  font-size: 1.1rem;
+  font-weight: 500;
+  font-size: 0.875rem;
   color: var(--text-primary);
+  width: 80px;
+  text-align: center;
+  white-space: nowrap;
 }
 
 .timestamp-cell {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.85rem;
+  font-family: "SF Mono", "Monaco", monospace;
+  font-size: 0.8125rem;
   color: var(--text-secondary);
+  width: 120px;
+  white-space: nowrap;
 }
 
 .actions-cell {
   width: 150px;
+  white-space: nowrap;
 }
 
 /* Patterns */
@@ -479,23 +483,22 @@ onUnmounted(() => {
 }
 
 .pattern-tag {
-  padding: 0.35rem 0.7rem;
-  background: rgba(168, 85, 247, 0.15);
-  border: 1px solid var(--accent-purple);
-  border-radius: 6px;
-  font-size: 0.75rem;
-  color: var(--accent-purple);
-  font-weight: 600;
+  padding: 0.25rem 0.625rem;
+  background: rgba(147, 51, 234, 0.12);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 8px;
+  font-size: 0.6875rem;
+  color: var(--accent-purple-light);
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  box-shadow: inset 0 0 10px rgba(168, 85, 247, 0.2);
+  letter-spacing: 0.03em;
   transition: all 0.3s;
   white-space: nowrap;
 }
 
 .session-row:hover .pattern-tag {
-  background: rgba(168, 85, 247, 0.25);
-  box-shadow: var(--glow-purple), inset 0 0 15px rgba(168, 85, 247, 0.3);
+  background: rgba(147, 51, 234, 0.18);
+  border-color: var(--accent-purple);
 }
 
 .no-patterns {
@@ -509,26 +512,22 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 1.25rem;
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
-  color: var(--accent-cyan);
-  border: 1px solid var(--accent-cyan);
-  border-radius: 8px;
+  padding: 0.5rem 1rem;
+  background: rgba(147, 51, 234, 0.1);
+  color: var(--accent-purple-light);
+  border: 1px solid rgba(147, 51, 234, 0.3);
+  border-radius: 10px;
   cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+  font-weight: 500;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: inset 0 0 10px rgba(0, 212, 255, 0.1);
   white-space: nowrap;
 }
 
 .view-button:hover {
-  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%);
-  border-color: var(--accent-cyan);
-  box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 212, 255, 0.2);
-  transform: scale(1.05);
+  background: rgba(147, 51, 234, 0.15);
+  border-color: var(--accent-purple);
+  transform: scale(1.02);
 }
 
 /* Responsive adjustments */
@@ -537,7 +536,7 @@ onUnmounted(() => {
   .sessions-table td {
     padding: 1rem;
   }
-  
+
   .pattern-tag {
     font-size: 0.7rem;
     padding: 0.3rem 0.6rem;
@@ -548,7 +547,7 @@ onUnmounted(() => {
   .sessions-table-container {
     overflow-x: auto;
   }
-  
+
   .sessions-table {
     min-width: 800px;
   }

@@ -1,32 +1,36 @@
 /* ===================================
-   CYBER INTELLIGENCE THEME
-   Futuristic glassmorphic design
+   B2B SAAS CYBERSECURITY PLATFORM
+   Professional, trustworthy design
    =================================== */
 
 :root {
-  /* Color Palette */
-  --bg-primary: #0a0e27;
-  --bg-secondary: #1a1d3a;
-  --accent-cyan: #00d4ff;
-  --accent-purple: #a855f7;
+  /* Color Palette - Black, Grey, Purple, Pink */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a1a;
+  --bg-tertiary: #2a2a2a;
+  --accent-purple: #9333ea;
+  --accent-purple-light: #a855f7;
+  --accent-pink: #ec4899;
+  --accent-pink-light: #f472b6;
   --danger-red: #ef4444;
   --warning-amber: #f59e0b;
   --success-emerald: #10b981;
-  --text-primary: #e2e8f0;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
   
-  /* Glass Effect */
-  --glass-bg: rgba(255, 255, 255, 0.05);
-  --glass-border: rgba(255, 255, 255, 0.1);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  /* Glass Effect - More subtle */
+  --glass-bg: rgba(255, 255, 255, 0.03);
+  --glass-bg-hover: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
   
-  /* Glow Effects */
-  --glow-cyan: 0 0 20px rgba(0, 212, 255, 0.5);
-  --glow-purple: 0 0 20px rgba(168, 85, 247, 0.5);
-  --glow-red: 0 0 20px rgba(239, 68, 68, 0.5);
-  --glow-amber: 0 0 20px rgba(245, 158, 11, 0.5);
-  --glow-emerald: 0 0 20px rgba(16, 185, 129, 0.5);
+  /* Subtle Glow Effects */
+  --glow-purple: 0 0 16px rgba(147, 51, 234, 0.3);
+  --glow-pink: 0 0 16px rgba(236, 72, 153, 0.3);
+  --glow-red: 0 0 16px rgba(239, 68, 68, 0.3);
+  --glow-amber: 0 0 16px rgba(245, 158, 11, 0.3);
+  --glow-emerald: 0 0 16px rgba(16, 185, 129, 0.3);
 }
 
 * {
@@ -41,16 +45,18 @@ html {
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
-    Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  background: var(--bg-primary);
   color: var(--text-primary);
   overflow-x: hidden;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
-/* Animated background pattern */
+/* Subtle background pattern */
 body::before {
   content: '';
   position: fixed;
@@ -59,17 +65,10 @@ body::before {
   width: 100%;
   height: 100%;
   background-image: 
-    linear-gradient(90deg, rgba(0, 212, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(rgba(0, 212, 255, 0.03) 1px, transparent 1px);
-  background-size: 50px 50px;
+    radial-gradient(circle at 20% 50%, rgba(147, 51, 234, 0.08) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 50%);
   z-index: 0;
   pointer-events: none;
-  animation: gridMove 20s linear infinite;
-}
-
-@keyframes gridMove {
-  0% { transform: translateY(0); }
-  100% { transform: translateY(50px); }
 }
 
 #app {
@@ -78,58 +77,65 @@ body::before {
   z-index: 1;
 }
 
-/* Typography */
+/* Typography - Corporate & Trustworthy */
 h1, h2, h3, h4, h5, h6 {
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-weight: 600;
+  letter-spacing: -0.01em;
   color: var(--text-primary);
+  line-height: 1.2;
 }
 
 h1 {
-  font-size: 2.5rem;
-  background: linear-gradient(135deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-size: 1.875rem;
+  font-weight: 600;
+}
+
+h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
 }
 
 code, .mono {
-  font-family: 'JetBrains Mono', 'Fira Code', source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
-  background: rgba(0, 212, 255, 0.1);
-  padding: 0.2em 0.4em;
-  border-radius: 4px;
-  border: 1px solid rgba(0, 212, 255, 0.2);
+  font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Code', monospace;
+  background: rgba(147, 51, 234, 0.1);
+  padding: 0.2em 0.5em;
+  border-radius: 6px;
+  border: 1px solid rgba(147, 51, 234, 0.2);
+  font-size: 0.875em;
 }
 
 /* Scrollbar Styling */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, var(--accent-cyan) 0%, var(--accent-purple) 100%);
+  background: linear-gradient(180deg, var(--accent-purple) 0%, var(--accent-pink) 100%);
   border-radius: 10px;
-  box-shadow: var(--glow-cyan);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-cyan);
-  box-shadow: 0 0 30px var(--accent-cyan);
+  background: var(--accent-purple-light);
 }
 
-/* Glass Panel Utility Classes */
+/* Glass Panel Utility Classes - Subtle Glassmorphism */
 .glass-panel {
   background: var(--glass-bg);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow);
-  border-radius: 12px;
+  border-radius: 16px;
 }
 
 .glass-panel-hover {
@@ -137,19 +143,19 @@ code, .mono {
 }
 
 .glass-panel-hover:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: translateY(-2px);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), var(--glow-cyan);
+  background: var(--glass-bg-hover);
+  border-color: rgba(147, 51, 234, 0.2);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), var(--glow-purple);
 }
 
-/* Neon Glow Utilities */
-.glow-cyan {
-  box-shadow: var(--glow-cyan);
-}
-
+/* Subtle Glow Utilities */
 .glow-purple {
   box-shadow: var(--glow-purple);
+}
+
+.glow-pink {
+  box-shadow: var(--glow-pink);
 }
 
 .glow-red {
@@ -164,24 +170,13 @@ code, .mono {
   box-shadow: var(--glow-emerald);
 }
 
-/* Animations */
+/* Animations - Subtle & Professional */
 @keyframes pulse-glow {
   0%, 100% {
     opacity: 1;
-    filter: brightness(1);
   }
   50% {
-    opacity: 0.7;
-    filter: brightness(1.2);
-  }
-}
-
-@keyframes float {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-10px);
+    opacity: 0.85;
   }
 }
 
@@ -195,20 +190,16 @@ code, .mono {
 }
 
 .pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.float {
-  animation: float 3s ease-in-out infinite;
+  animation: pulse-glow 3s ease-in-out infinite;
 }
 
 /* Loading Shimmer */
 .loading-shimmer {
   background: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(0, 212, 255, 0.1) 50%,
-    rgba(255, 255, 255, 0.05) 100%
+    rgba(255, 255, 255, 0.02) 0%,
+    rgba(147, 51, 234, 0.08) 50%,
+    rgba(255, 255, 255, 0.02) 100%
   );
   background-size: 1000px 100%;
   animation: shimmer 2s linear infinite;
@@ -216,20 +207,20 @@ code, .mono {
 
 /* Focus Styles */
 *:focus-visible {
-  outline: 2px solid var(--accent-cyan);
+  outline: 2px solid var(--accent-purple);
   outline-offset: 2px;
-  box-shadow: var(--glow-cyan);
+  box-shadow: 0 0 0 4px rgba(147, 51, 234, 0.2);
 }
 
 /* Selection */
 ::selection {
-  background: var(--accent-cyan);
-  color: var(--bg-primary);
+  background: var(--accent-purple);
+  color: white;
 }
 
 ::-moz-selection {
-  background: var(--accent-cyan);
-  color: var(--bg-primary);
+  background: var(--accent-purple);
+  color: white;
 }
 
 /* Reduce motion for accessibility */
@@ -241,10 +232,6 @@ code, .mono {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-  
-  body::before {
-    animation: none;
   }
 }
 
