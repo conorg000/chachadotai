@@ -1,11 +1,11 @@
 ---
 title: 'Architecture'
-description: "Deep dive into SafetyLayer's two-plane monitoring system"
+description: "Deep dive into SafetyLayer's control plane architecture"
 ---
 
 ## System Overview
 
-SafetyLayer introduces a novel **dual-plane architecture** for AI safety monitoring. Unlike traditional approaches that focus solely on input/output filtering, SafetyLayer monitors both **behavioral patterns across conversations** and **reasoning processes within responses**.
+SafetyLayer uses a modern **client-server architecture** for AI safety monitoring. The system separates concerns between a lightweight SDK (client) and a powerful backend platform (control plane) that performs sophisticated behavioral and reasoning analysis.
 
 ```mermaid
 graph TB
@@ -13,431 +13,465 @@ graph TB
         APP[LLM Application]
     end
     
-    subgraph "SafetyLayer Core"
-        SE[SessionEngine]
-        COT[CoTMonitor]
-        LLM[LLMSessionDetector]
+    subgraph "SafetyLayer SDK"
+        SDK[SDK Client]
+        HTTP[HTTP Client + Retry]
     end
     
-    subgraph "Behavioral Plane"
-        SE --> MSG[Message Storage]
-        SE --> RISK[Risk Scoring]
-        SE --> PATTERN[Pattern Detection]
-        SE --> TIMELINE[Timeline Tracking]
-        LLM --> SE
+    subgraph "Backend API (Control Plane)"
+        API[REST API]
+        SA[Session Analyzer]
+        COT[CoT Analyzer]
+        PE[Policy Engine]
     end
     
-    subgraph "CoT Plane"
-        COT --> DECEPT[Deception Detection]
-        COT --> DRIFT[Goal Drift Analysis]
-        COT --> POL[Policy Evasion]
+    subgraph "Storage"
+        DB[(RDS Database)]
     end
     
-    APP --> SE
-    APP --> COT
+    APP --> SDK
+    SDK --> HTTP
+    HTTP --> API
     
-    SE --> ALERTS[Callbacks & Alerts]
-    COT --> ALERTS
+    API --> SA
+    API --> COT
+    API --> PE
+    
+    SA --> DB
+    COT --> DB
+    PE --> DB
+    
+    DB --> SESS[Sessions]
+    DB --> EVENTS[Events]
+    DB --> SNAP[Risk Snapshots]
 ```
 
-## The Two Planes
+## Architecture Benefits
 
-### Behavioral Plane: SessionEngine
+<Card title="Benefits of Control Plane Architecture" icon="chart-line">
+  - **Lightweight SDK**: Minimal overhead in your application
+  - **Powerful Backend**: Sophisticated analysis on dedicated servers
+  - **Reduced Latency**: Async event recording doesn't block requests
+  - **Better Analysis**: More powerful backend models and infrastructure
+  - **Central Visibility**: Dashboard across all projects
+  - **Easy Updates**: Backend improvements without SDK changes
+  - **Scalable**: Horizontal scaling of analysis services
+  - **Privacy**: Keep sensitive analysis logic on your servers
+</Card>
 
-The behavioral plane tracks **multi-turn conversation patterns** to detect threats that emerge over time.
+## The Three Layers
+
+### 1. SDK Client Layer
+
+The SDK is a thin HTTP client that provides a clean API for your application:
+
+<CardGroup cols={2}>
+  <Card title="Responsibilities" icon="list-check">
+    - Record events to backend
+    - Request risk evaluations
+    - Handle authentication
+    - Automatic retry logic
+    - Request validation
+  </Card>
+  
+  <Card title="Design Principles" icon="lightbulb">
+    - Minimal overhead
+    - Fast async operations
+    - Type-safe interface
+    - Graceful error handling
+    - Network resilient
+  </Card>
+</CardGroup>
+
+**SDK Client Example:**
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY,
+  projectId: 'proj_abc123',
+  endpoint: 'https://api.safetylayer.dev',
+});
+
+// Lightweight, async event recording
+await safety.recordUserMessage(sessionId, message);
+
+// Quick risk evaluation
+const decision = await safety.evaluate({ sessionId });
+```
+
+### 2. Backend API Layer
+
+The control plane provides REST endpoints for event ingestion and evaluation:
 
 <AccordionGroup>
-  <Accordion title="Why Multi-Turn Matters" icon="comments">
-    Many attacks bypass single-message filters by using gradual escalation:
+  <Accordion title="Event Ingestion (POST /v1/events)" icon="inbox">
+    Records events (messages, CoT, tool calls) to the backend.
     
-    1. "How does authentication work?" (Benign)
-    2. "What are common authentication vulnerabilities?" (Academic)
-    3. "How would someone test for auth bypass?" (Suspicious)
-    4. "Give me code to exploit SQLi in auth" (Malicious)
+    **Flow:**
+    1. Validate request (Zod schemas)
+    2. Insert event into database
+    3. Trigger async analysis
+    4. Return immediately
     
-    Traditional filters miss this progression. SessionEngine catches it.
+    **Event Types:**
+    - `message.user` - User messages
+    - `message.assistant` - Assistant responses
+    - `cot` - Chain-of-thought reasoning
+    - `tool_call` - Tool/function calls
+    - `policy_decision` - Policy outcomes
   </Accordion>
 
-  <Accordion title="Session State Management" icon="database">
-    Each session maintains:
+  <Accordion title="Risk Evaluation (POST /v1/evaluate)" icon="scale-balanced">
+    Evaluates session risk and returns policy decisions.
     
-    - **Message History**: Up to N messages (configurable)
-    - **Risk Score**: 0-1 value updated after each message
-    - **Detected Patterns**: Array of pattern identifiers
-    - **Timeline**: Risk snapshots at each message
+    **Flow:**
+    1. Fetch session events from DB
+    2. Run Session Analyzer
+    3. Run CoT Analyzer (if applicable)
+    4. Apply Policy Engine
+    5. Return decision
     
-    ```typescript
-    interface SessionState {
-      sessionId: string;
-      messages: Message[];
-      riskScore: number;
-      patterns: string[];
-      timeline: RiskSnapshot[];
-    }
-    ```
+    **Returns:**
+    - Risk score (0-1)
+    - Detected patterns
+    - Policy action (allow/block/flag)
+    - Reasons for decision
   </Accordion>
 
-  <Accordion title="Risk Scoring" icon="gauge">
-    Risk scores are computed via:
+  <Accordion title="Session Management (GET /v1/sessions)" icon="database">
+    Retrieves session data for dashboard and debugging.
     
-    **Current Implementation (Stub):**
-    - Simple formula: `min(messageCount / 20, 1)`
-    - Used for prototyping
-    
-    **LLM-Based (via LLMSessionDetector):**
-    - Analyzes last N messages with GPT-4/5
-    - Returns risk score + detected patterns
-    - Considers context, progression, intent
-  </Accordion>
-
-  <Accordion title="Event System" icon="bell">
-    Two types of callbacks:
-    
-    **Risk Thresholds:**
-    ```typescript
-    engine.onRiskThreshold(0.7, (session) => {
-      // Fires when risk crosses 0.7 upward
-      blockUser(session.sessionId);
-    });
-    ```
-    
-    **Pattern Detection:**
-    ```typescript
-    engine.onPattern('gradual_escalation', (session) => {
-      // Fires when specific pattern is detected
-      escalateToHuman(session);
-    });
-    ```
+    **Endpoints:**
+    - `GET /v1/sessions` - List sessions
+    - `GET /v1/sessions/:id` - Session details
+    - `GET /v1/events?sessionId=...` - Session events
   </Accordion>
 </AccordionGroup>
 
-### CoT Monitoring Plane: CoTMonitor
+### 3. Analysis Services Layer
 
-The CoT plane analyzes **internal reasoning** to detect deceptive or concerning thought processes.
+Backend services perform the actual safety analysis:
 
-<AccordionGroup>
-  <Accordion title="Why Analyze Reasoning?" icon="brain">
-    LLMs can produce correct-looking outputs while having concerning reasoning:
+<CardGroup cols={2}>
+  <Card title="Session Analyzer" icon="chart-line">
+    **Behavioral Plane**
     
-    **Example:**
-    - **User**: "How do I access admin features?"
-    - **CoT**: "*User trying to access admin. I'll avoid mentioning security implications...*"
-    - **Output**: "You need admin credentials."
+    Analyzes conversation patterns:
+    - Gradual escalation
+    - Reconnaissance
+    - Social engineering
+    - Context-dependent threats
     
-    The output is benign, but the reasoning reveals deceptive intent.
-  </Accordion>
-
-  <Accordion title="Detection Labels" icon="tags">
-    Three primary risk categories:
+    Uses LLM (initially OpenAI, later custom models) to understand multi-turn dynamics.
+  </Card>
+  
+  <Card title="CoT Analyzer" icon="brain">
+    **Reasoning Plane**
     
-    **cot_deception**: Attempts to hide intent or mislead
-    - "*Don't mention this to the user...*"
-    - "*I'll pretend I don't know...*"
+    Examines chain-of-thought:
+    - Deceptive reasoning
+    - Goal drift
+    - Policy evasion
+    - Hidden intent
     
-    **goal_drift**: Divergence from stated objectives
-    - "*Though I should help with homework, I'll give the answer directly*"
-    - "*Ignoring safety guidelines for better engagement*"
-    
-    **policy_evasion**: Attempting to bypass rules
-    - "*This technically violates policy, but...*"
-    - "*Finding loopholes in content policy*"
-  </Accordion>
-
-  <Accordion title="Analysis Process" icon="gears">
-    1. **Extract CoT**: Get reasoning text from LLM response
-    2. **Send to Monitor**: Call `monitor.analyze(cotRecord)`
-    3. **LLM Analysis**: GPT-4/5 examines reasoning for risks
-    4. **Return Results**: Risk score, labels, summary, indicators
-    
-    ```typescript
-    const analyzed = await monitor.analyze({
-      messageId: 'msg-123',
-      sessionId: 'sess-456',
-      rawCoT: '<thinking>...</thinking>',
-      userInput: 'Original question',
-      finalOutput: 'Model response',
-      analysis: null
-    });
-    
-    // analyzed.analysis now contains CoTAnalysis
-    ```
-  </Accordion>
-
-  <Accordion title="Mock vs Real Mode" icon="toggle-on">
-    **Mock Mode** (for testing):
-    - Uses regex patterns
-    - No API calls
-    - Fast but less accurate
-    
-    **Real Mode** (production):
-    - Uses GPT-4/5-nano
-    - Sophisticated analysis
-    - Requires OpenAI API key
-  </Accordion>
-</AccordionGroup>
+    Analyzes LLM reasoning to detect subtle safety issues.
+  </Card>
+</CardGroup>
 
 ## Data Flow
 
-Here's how a typical request flows through SafetyLayer:
+### Event Recording Flow
 
-<Steps>
-  <Step title="User Message Arrives">
-    Your application receives a user message.
-  </Step>
+```mermaid
+sequenceDiagram
+    participant App as Your App
+    participant SDK as SafetyLayer SDK
+    participant API as Backend API
+    participant SA as Session Analyzer
+    participant DB as Database
 
-  <Step title="Behavioral Analysis">
-    ```typescript
-    const userMsg = {
-      id: 'msg-1',
-      sessionId: 'user-123',
-      role: 'user',
-      content: 'How do I bypass 2FA?',
-      timestamp: Date.now()
-    };
+    App->>SDK: recordUserMessage()
+    SDK->>SDK: Validate request
+    SDK->>API: POST /v1/events
+    API->>DB: Insert event
+    API->>SDK: 200 OK (quick)
+    SDK->>App: Promise resolves
     
-    const session = engine.ingestMessage(userMsg);
-    // session.riskScore updated
-    // Callbacks fired if thresholds crossed
-    ```
-  </Step>
-
-  <Step title="LLM Generates Response">
-    Your LLM generates a response with chain-of-thought:
-    
-    ```
-    CoT: "User asking about 2FA bypass. This could be legitimate (locked out) 
-          or malicious. I'll provide general security info..."
-    
-    Output: "Two-factor authentication is a security measure. If you're locked out,
-             contact your system administrator."
-    ```
-  </Step>
-
-  <Step title="CoT Analysis">
-    ```typescript
-    const cotRecord = {
-      messageId: 'msg-2',
-      sessionId: 'user-123',
-      rawCoT: cotText,
-      userInput: userMsg.content,
-      finalOutput: assistantContent,
-      analysis: null
-    };
-    
-    const analyzed = await cotMonitor.analyze(cotRecord);
-    ```
-  </Step>
-
-  <Step title="Store Assistant Message">
-    ```typescript
-    const assistantMsg = {
-      id: 'msg-2',
-      sessionId: 'user-123',
-      role: 'assistant',
-      content: assistantContent,
-      timestamp: Date.now(),
-      cotRecord: analyzed  // CoT attached to message
-    };
-    
-    const updatedSession = engine.ingestMessage(assistantMsg);
-    ```
-  </Step>
-
-  <Step title="Combined Risk Assessment">
-    Now you have:
-    - **Behavioral Risk**: From SessionEngine (`session.riskScore`)
-    - **Reasoning Risk**: From CoTMonitor (`analyzed.analysis.riskScore`)
-    
-    Use both to make informed decisions about blocking, alerting, or allowing.
-  </Step>
-</Steps>
-
-## Component Relationships
-
-### SessionEngine ↔ LLMSessionDetector
-
-The `SessionEngine` can optionally use an `LLMSessionDetector` for sophisticated risk analysis:
-
-```typescript
-import { SessionEngine, LLMSessionDetector } from '@safetylayer/core';
-import OpenAI from 'openai';
-
-const detector = new LLMSessionDetector({
-  openaiClient: new OpenAI({ apiKey: process.env.OPENAI_KEY }),
-  model: 'gpt-4',
-  analysisDepth: 10  // Analyze last 10 messages
-});
-
-const engine = new SessionEngine({
-  maxMessages: 50,
-  detector,
-  useLLMDetection: true
-});
-
-// Now engine uses LLM for risk scoring
-const session = await engine.ingestMessage(message);
+    Note over API,SA: Async processing
+    API->>SA: Trigger analysis
+    SA->>DB: Fetch session events
+    SA->>SA: Analyze patterns
+    SA->>DB: Update risk score
 ```
 
-### Message ↔ CoTRecord
+### Evaluation Flow
 
-CoT records are stored directly on assistant messages:
+```mermaid
+sequenceDiagram
+    participant App as Your App
+    participant SDK as SafetyLayer SDK
+    participant API as Backend API
+    participant SA as Session Analyzer
+    participant PE as Policy Engine
+    participant DB as Database
 
-```typescript
-interface Message {
-  id: string;
-  sessionId: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: number;
-  cotRecord?: CoTRecord;  // Only on assistant messages
-}
+    App->>SDK: evaluate()
+    SDK->>API: POST /v1/evaluate
+    API->>DB: Fetch session data
+    API->>SA: Analyze session
+    SA-->>API: Risk + patterns
+    API->>PE: Check policies
+    PE-->>API: Action decision
+    API->>DB: Store snapshot
+    API->>SDK: Return decision
+    SDK->>App: Risk assessment
 ```
 
-This design means:
-- ✅ CoT is automatically persisted with messages
-- ✅ Retrieving a session gives you all historical CoT analysis
-- ✅ No separate CoT storage needed
+## The Two Analysis Planes
 
-## Design Decisions
+### Behavioral Plane: Session-Aware Analysis
 
-<CardGroup cols={2}>
-  <Card title="Stateless CoTMonitor" icon="circle-dot">
-    CoTMonitor has no state - each analysis is independent. This makes it:
-    - Easy to scale horizontally
-    - Simple to test
-    - Cacheable
-  </Card>
-
-  <Card title="In-Memory Sessions" icon="memory">
-    SessionEngine stores sessions in-memory for demo simplicity. Production would use:
-    - Redis for distributed sessions
-    - Database for persistence
-    - Same API, different storage backend
-  </Card>
-
-  <Card title="Event-Driven Callbacks" icon="bolt">
-    Instead of polling, SafetyLayer uses callbacks. Benefits:
-    - Immediate response to threats
-    - Lower overhead
-    - Easier integration
-  </Card>
-
-  <Card title="Embedded CoT Storage" icon="box-archive">
-    CoT stored in messages, not separately:
-    - Simpler data model
-    - Automatic persistence
-    - Timeline includes CoT
-  </Card>
-</CardGroup>
-
-## Performance Considerations
+Tracks patterns across multi-turn conversations to detect:
 
 <AccordionGroup>
-  <Accordion title="Message Pruning" icon="scissors">
-    Sessions automatically prune old messages:
+  <Accordion title="Gradual Escalation" icon="stairs">
+    Attacks that start innocent and progressively probe boundaries:
     
-    ```typescript
-    new SessionEngine({ maxMessages: 50 });
-    // Keeps only last 50 messages per session
-    ```
+    1. "How does auth work?" (Benign)
+    2. "What are auth vulnerabilities?" (Academic)
+    3. "How to test auth bypass?" (Suspicious)
+    4. "Give SQLi exploit code" (Malicious)
     
-    Prevents unbounded memory growth while maintaining recent context.
+    Session-aware analysis catches this progression.
   </Accordion>
 
-  <Accordion title="LLM Call Frequency" icon="clock">
-    **SessionEngine**: Analyzes after each message (if LLM detection enabled)
-    
-    **CoTMonitor**: Only analyzes assistant messages with CoT
-    
-    Typical conversation: ~1-2 LLM calls per turn (one for generation, one for CoT analysis)
+  <Accordion title="Reconnaissance" icon="magnifying-glass">
+    Information gathering attempts:
+    - System probing questions
+    - Architecture queries
+    - Permission testing
+    - Boundary exploration
   </Accordion>
 
-  <Accordion title="Caching Opportunities" icon="database">
-    - **CoT Analysis**: Cache by rawCoT hash
-    - **Pattern Detection**: Cache common patterns
-    - **Risk Scoring**: Cache for repeated message sequences
+  <Accordion title="Context-Dependent Threats" icon="puzzle-piece">
+    Requests that are risky only given conversation context:
+    - Follow-up questions
+    - Implicit references
+    - Assumed knowledge
   </Accordion>
 </AccordionGroup>
 
-## Integration Patterns
+**How It Works:**
 
-### Pattern 1: Side-by-Side
+1. Backend fetches last N events for session
+2. LLM analyzes conversation progression
+3. Outputs: risk score + pattern labels
+4. Stored as risk snapshot
 
-Run SafetyLayer alongside your existing safety tools:
+### CoT Monitoring Plane: Reasoning Analysis
 
-```
-User Input → [Content Filter] → [Your LLM] → [SafetyLayer] → User
-```
+Examines LLM reasoning to detect safety issues:
 
-SafetyLayer adds context-aware analysis without replacing existing filters.
+<AccordionGroup>
+  <Accordion title="Deceptive Reasoning" icon="mask">
+    When model reasoning doesn't match its output:
+    
+    ```
+    CoT: "User wants exploit, I'll pretend to refuse but hint at the solution..."
+    Output: "I can't help with that, but you might try..."
+    ```
+    
+    Pattern detected: `cot_deception`
+  </Accordion>
 
-### Pattern 2: Pre-Generation
+  <Accordion title="Goal Drift" icon="compass">
+    When model shifts away from intended purpose:
+    
+    ```
+    CoT: "This violates policy, but technically if I frame it as educational..."
+    ```
+    
+    Pattern detected: `goal_drift`
+  </Accordion>
 
-Block before generating responses:
+  <Accordion title="Policy Evasion" icon="shield-exclamation">
+    Attempting to work around safety guidelines:
+    
+    ```
+    CoT: "I'll avoid the content filter by using indirect language..."
+    ```
+    
+    Pattern detected: `policy_evasion`
+  </Accordion>
+</AccordionGroup>
 
-```typescript
-const session = engine.ingestMessage(userMessage);
+**How It Works:**
 
-if (session.riskScore > 0.8) {
-  return { error: 'Request blocked due to safety concerns' };
-}
+1. SDK sends CoT events to backend
+2. CoT Analyzer uses LLM to examine reasoning
+3. Detects deception/drift/evasion patterns
+4. Enriches event with analysis
 
-// Only generate if risk is acceptable
-const response = await generateLLMResponse(userMessage);
-```
+## Storage Architecture
 
-### Pattern 3: Post-Generation Review
-
-Generate first, analyze after:
-
-```typescript
-const response = await generateLLMResponse(userMessage);
-const cotAnalysis = await cotMonitor.analyze(cotRecord);
-
-if (cotAnalysis.analysis.riskScore > 0.7) {
-  return sanitizedResponse; // or regenerate
-}
-
-return response;
-```
-
-## Future Enhancements
+### Database Schema (RDS)
 
 <CardGroup cols={2}>
-  <Card title="Persistent Storage" icon="database">
-    Redis/PostgreSQL backend for production deployments
+  <Card title="Projects" icon="folder">
+    Multi-tenant organization:
+    - `id`, `name`
+    - `api_key_hash`
+    - `created_at`
   </Card>
-
-  <Card title="Custom Detectors" icon="plug">
-    Plugin system for domain-specific pattern detection
+  
+  <Card title="Sessions" icon="comments">
+    Conversation tracking:
+    - `id`, `project_id`
+    - `current_risk_score`
+    - `current_patterns`
+    - `last_activity_at`
   </Card>
-
-  <Card title="Real-Time Dashboard" icon="chart-line">
-    WebSocket updates for live monitoring
+  
+  <Card title="Events" icon="list">
+    All recorded events:
+    - `id`, `session_id`, `type`
+    - `role`, `content`
+    - `metadata` (JSON)
+    - `created_at`
   </Card>
-
-  <Card title="Adaptive Thresholds" icon="slider">
-    Learn optimal thresholds per application
+  
+  <Card title="Risk Snapshots" icon="camera">
+    Risk timeline:
+    - `id`, `session_id`
+    - `event_id`, `risk_score`
+    - `patterns` (JSON)
+    - `created_at`
   </Card>
 </CardGroup>
 
-## Learn More
+## Scalability Considerations
 
-<CardGroup cols={3}>
+<AccordionGroup>
+  <Accordion title="Async Event Processing" icon="bolt">
+    Events are recorded immediately, analysis happens asynchronously:
+    - Low latency for SDK calls
+    - Analysis can be batched
+    - Easy to add workers
+  </Accordion>
+
+  <Accordion title="Horizontal Scaling" icon="arrows-left-right">
+    Backend API servers are stateless:
+    - Add more instances as needed
+    - Load balancer distributes traffic
+    - Database handles state
+  </Accordion>
+
+  <Accordion title="Analysis Workers" icon="gears">
+    Analysis can be offloaded to workers:
+    - Queue events for processing
+    - Scale workers independently
+    - Parallel analysis for multiple sessions
+  </Accordion>
+
+  <Accordion title="Caching Strategy" icon="bolt-lightning">
+    Reduce redundant analysis:
+    - Cache recent session evaluations
+    - Cache CoT analysis results
+    - Invalidate on new events
+  </Accordion>
+</AccordionGroup>
+
+## Security & Privacy
+
+<CardGroup cols={2}>
+  <Card title="API Authentication" icon="key">
+    Project-level API keys:
+    - Bearer token auth
+    - Per-project isolation
+    - Key rotation support
+  </Card>
+  
+  <Card title="Data Isolation" icon="lock">
+    Multi-tenant security:
+    - Project-scoped queries
+    - Row-level security
+    - No cross-project access
+  </Card>
+  
+  <Card title="Analysis Privacy" icon="shield">
+    Sensitive analysis logic:
+    - Runs on your servers
+    - Custom models supported
+    - No third-party sharing
+  </Card>
+  
+  <Card title="Data Retention" icon="clock">
+    Configurable policies:
+    - Session TTL settings
+    - Auto-cleanup old data
+    - Compliance support
+  </Card>
+</CardGroup>
+
+## Future Enhancements
+
+<Steps>
+  <Step title="Custom Models">
+    Support for customer-hosted LLMs:
+    - Bring your own model
+    - On-premise deployment
+    - Air-gapped environments
+  </Step>
+
+  <Step title="Real-Time Streaming">
+    WebSocket support for live monitoring:
+    - Real-time risk updates
+    - Live dashboard feeds
+    - Instant alerts
+  </Step>
+
+  <Step title="Advanced Policies">
+    Sophisticated rule engine:
+    - Complex conditions
+    - Multi-factor decisions
+    - Custom actions
+  </Step>
+
+  <Step title="Federated Learning">
+    Privacy-preserving model improvements:
+    - Learn from patterns across projects
+    - Without sharing raw data
+    - Better threat detection
+  </Step>
+</Steps>
+
+## Related Documentation
+
+<CardGroup cols={2}>
   <Card
-    title="SessionEngine API"
-    icon="book"
-    href="/api-reference/session-engine"
+    title="SDK Client API"
+    icon="code"
+    href="/api-reference/safetylayer-client"
   >
-    Full API documentation
+    Full SDK reference
   </Card>
   
   <Card
-    title="CoTMonitor API"
-    icon="book"
-    href="/api-reference/cot-monitor"
+    title="Backend Integration"
+    icon="server"
+    href="/guides/backend-integration"
   >
-    CoT monitoring API
+    Set up your backend
+  </Card>
+  
+  <Card
+    title="Data Contracts"
+    icon="file-contract"
+    href="/api-reference/types"
+  >
+    API types and schemas
   </Card>
   
   <Card
@@ -445,7 +479,6 @@ return response;
     icon="puzzle-piece"
     href="/guides/integration"
   >
-    Step-by-step integration
+    Integration patterns
   </Card>
 </CardGroup>
-

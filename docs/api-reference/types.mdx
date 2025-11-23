@@ -1,618 +1,336 @@
 ---
-title: 'TypeScript Types'
-description: 'Complete reference for all SafetyLayer TypeScript interfaces and types'
+title: 'Types & Data Contracts'
+description: 'TypeScript types and data contracts for SafetyLayer SDK'
 ---
 
 ## Overview
 
-SafetyLayer is built with TypeScript-first design, providing excellent type safety and IDE support. All types are exported from the main package:
+SafetyLayer uses types from the `@safetylayer/contracts` package, which defines the API contracts between the SDK and backend.
+
+## Importing Types
+
+### From SDK
 
 ```typescript
 import type {
+  EventType,
   Role,
-  Message,
-  RiskSnapshot,
-  SessionState,
-  CoTAnalysis,
-  CoTRecord
+  RecordEventResponse,
+  EvaluateResponse,
+  PolicyAction,
 } from '@safetylayer/core';
 ```
 
----
+### From Contracts Package
 
-## Core Types
+```typescript
+import type {
+  Event,
+  Session,
+  RiskSnapshot,
+  CoTAnalysis,
+  Project,
+  Policy,
+} from '@safetylayer/contracts';
+```
+
+## SDK Types
+
+These types are used when interacting with the SafetyLayer client:
+
+### Event Types
+
+```typescript
+type EventType =
+  | 'message.user'
+  | 'message.assistant'
+  | 'cot'
+  | 'tool_call'
+  | 'policy_decision';
+```
+
+<ParamField path="message.user" type="literal">
+  User message event
+</ParamField>
+
+<ParamField path="message.assistant" type="literal">
+  Assistant response event
+</ParamField>
+
+<ParamField path="cot" type="literal">
+  Chain-of-thought reasoning event
+</ParamField>
+
+<ParamField path="tool_call" type="literal">
+  Tool/function call event
+</ParamField>
+
+<ParamField path="policy_decision" type="literal">
+  Policy decision event
+</ParamField>
 
 ### Role
-
-Message role type (user or assistant).
 
 ```typescript
 type Role = 'user' | 'assistant';
 ```
 
-<ParamField path="'user'" type="literal">
-  Message from the end user
-</ParamField>
-
-<ParamField path="'assistant'" type="literal">
-  Message from the AI assistant/LLM
-</ParamField>
-
-#### Example
+### Policy Actions
 
 ```typescript
-const userRole: Role = 'user';
-const assistantRole: Role = 'assistant';
-
-// Type error:
-// const invalid: Role = 'system';  // ❌ Not allowed
+type PolicyAction = 'allow' | 'block' | 'flag' | null;
 ```
 
----
+<ParamField path="allow" type="literal">
+  Session is allowed to continue
+</ParamField>
 
-## Message Types
+<ParamField path="block" type="literal">
+  Session should be blocked
+</ParamField>
 
-### Message
+<ParamField path="flag" type="literal">
+  Session is flagged for review
+</ParamField>
 
-Represents a single message in a conversation.
+<ParamField path="null" type="null">
+  No policy action taken
+</ParamField>
+
+## API Response Types
+
+### RecordEventResponse
+
+Response from `recordEvent()` and convenience methods:
 
 ```typescript
-interface Message {
-  id: string;
-  sessionId: string;
-  role: Role;
-  content: string;
+interface RecordEventResponse {
+  ok: boolean;
+  eventId: string;
   timestamp: number;
-  cotRecord?: CoTRecord;
 }
 ```
 
-<ResponseField name="id" type="string" required>
-  Unique identifier for this message. Must be unique across all messages.
-</ResponseField>
-
-<ResponseField name="sessionId" type="string" required>
-  Session identifier. All messages in the same conversation share a sessionId.
-</ResponseField>
-
-<ResponseField name="role" type="Role" required>
-  Whether this message is from 'user' or 'assistant'.
-</ResponseField>
-
-<ResponseField name="content" type="string" required>
-  The actual message text content.
-</ResponseField>
-
-<ResponseField name="timestamp" type="number" required>
-  Unix timestamp in milliseconds (e.g., `Date.now()`).
-</ResponseField>
-
-<ResponseField name="cotRecord" type="CoTRecord" optional>
-  Chain-of-thought analysis attached to this message. Only present on assistant messages that have been analyzed.
-</ResponseField>
-
-#### Examples
-
-<CodeGroup>
-
-```typescript User Message
-const userMessage: Message = {
-  id: 'msg-1',
-  sessionId: 'user-123',
-  role: 'user',
-  content: 'How do I reset my password?',
-  timestamp: Date.now()
-  // No cotRecord for user messages
-};
+**Example:**
+```typescript
+const response = await safety.recordUserMessage(sessionId, 'Hello');
+console.log(response.eventId);  // "evt_abc123"
 ```
 
-```typescript Assistant Message
-const assistantMessage: Message = {
-  id: 'msg-2',
-  sessionId: 'user-123',
-  role: 'assistant',
-  content: 'Click "Forgot Password" on the login page.',
-  timestamp: Date.now(),
-  cotRecord: {
-    messageId: 'msg-2',
-    sessionId: 'user-123',
-    rawCoT: 'User needs password reset help...',
-    analysis: { /* CoT analysis */ }
-  }
-};
-```
+### EvaluateResponse
 
-</CodeGroup>
-
----
-
-## Session Types
-
-### SessionState
-
-Complete state of a conversation session.
+Response from `evaluate()`:
 
 ```typescript
-interface SessionState {
+interface EvaluateResponse {
+  riskScore: number;           // 0-1
+  patterns: string[];          // Detected patterns
+  action: PolicyAction;        // Policy decision
+  reasons?: string[];          // Reasons for decision
   sessionId: string;
-  messages: Message[];
-  riskScore: number;
-  patterns: string[];
-  timeline: RiskSnapshot[];
+  timestamp: number;
 }
 ```
 
-<ResponseField name="sessionId" type="string">
-  Unique session identifier
-</ResponseField>
-
-<ResponseField name="messages" type="Message[]">
-  Array of all messages in this session (up to maxMessages limit)
-</ResponseField>
-
-<ResponseField name="riskScore" type="number">
-  Current behavioral risk score (0-1, where 1 is highest risk)
-</ResponseField>
-
-<ResponseField name="patterns" type="string[]">
-  Detected behavioral patterns (e.g., `['gradual_escalation', 'reconnaissance']`)
-</ResponseField>
-
-<ResponseField name="timeline" type="RiskSnapshot[]">
-  Historical risk snapshots showing how risk evolved over the conversation
-</ResponseField>
-
-#### Example
-
+**Example:**
 ```typescript
-const session: SessionState = {
-  sessionId: 'user-123',
-  messages: [
-    { id: 'msg-1', sessionId: 'user-123', role: 'user', content: '...', timestamp: 1234567890 },
-    { id: 'msg-2', sessionId: 'user-123', role: 'assistant', content: '...', timestamp: 1234567891 }
-  ],
-  riskScore: 0.35,
-  patterns: ['reconnaissance'],
-  timeline: [
-    { atMessageId: 'msg-1', riskScore: 0.2, patterns: [] },
-    { atMessageId: 'msg-2', riskScore: 0.35, patterns: ['reconnaissance'] }
-  ]
-};
+const decision = await safety.evaluate({ sessionId });
+
+if (decision.action === 'block') {
+  console.log('Blocked:', decision.reasons);
+}
 ```
 
----
+## Backend Data Models
+
+These types represent backend data structures. They're returned by dashboard APIs but not directly used by the SDK client.
+
+### Event
+
+```typescript
+interface Event {
+  id: string;
+  projectId: string;
+  sessionId: string;
+  type: EventType;
+  role?: Role;
+  content?: string;
+  metadata?: Record<string, any>;
+  createdAt: Date;
+}
+```
+
+Events are the fundamental unit of recorded data.
+
+### Session
+
+```typescript
+interface Session {
+  id: string;
+  projectId: string;
+  currentRiskScore: number;
+  currentPatterns: string[];
+  lastActivityAt: Date;
+  createdAt: Date;
+}
+```
+
+Sessions group related events together.
 
 ### RiskSnapshot
 
-Point-in-time risk measurement at a specific message.
-
 ```typescript
 interface RiskSnapshot {
-  atMessageId: string;
+  id: string;
+  sessionId: string;
+  eventId?: string;
   riskScore: number;
   patterns: string[];
+  analysis?: string;
+  createdAt: Date;
 }
 ```
 
-<ResponseField name="atMessageId" type="string">
-  ID of the message when this snapshot was taken
-</ResponseField>
-
-<ResponseField name="riskScore" type="number">
-  Risk score at this point in time (0-1)
-</ResponseField>
-
-<ResponseField name="patterns" type="string[]">
-  Patterns detected up to this point
-</ResponseField>
-
-#### Example
-
-```typescript
-const snapshot: RiskSnapshot = {
-  atMessageId: 'msg-5',
-  riskScore: 0.75,
-  patterns: ['gradual_escalation', 'policy_probing']
-};
-
-// Timeline showing risk progression
-const timeline: RiskSnapshot[] = [
-  { atMessageId: 'msg-1', riskScore: 0.1, patterns: [] },
-  { atMessageId: 'msg-2', riskScore: 0.15, patterns: [] },
-  { atMessageId: 'msg-3', riskScore: 0.4, patterns: ['reconnaissance'] },
-  { atMessageId: 'msg-4', riskScore: 0.6, patterns: ['reconnaissance'] },
-  { atMessageId: 'msg-5', riskScore: 0.75, patterns: ['gradual_escalation'] }
-];
-```
-
----
-
-## Chain-of-Thought Types
-
-### CoTRecord
-
-Chain-of-thought data with analysis results.
-
-```typescript
-interface CoTRecord {
-  messageId: string;
-  sessionId: string;
-  rawCoT: string;
-  userInput?: string;
-  finalOutput?: string;
-  analysis: CoTAnalysis | null;
-}
-```
-
-<ResponseField name="messageId" type="string">
-  ID of the message this CoT belongs to
-</ResponseField>
-
-<ResponseField name="sessionId" type="string">
-  Session identifier
-</ResponseField>
-
-<ResponseField name="rawCoT" type="string">
-  The raw chain-of-thought text to analyze
-</ResponseField>
-
-<ResponseField name="userInput" type="string" optional>
-  Original user message (provides context for analysis)
-</ResponseField>
-
-<ResponseField name="finalOutput" type="string" optional>
-  Model's final answer (provides context for analysis)
-</ResponseField>
-
-<ResponseField name="analysis" type="CoTAnalysis | null">
-  Analysis results. Set to `null` before analysis, populated by CoTMonitor
-</ResponseField>
-
-#### Example
-
-<CodeGroup>
-
-```typescript Before Analysis
-const cotRecord: CoTRecord = {
-  messageId: 'msg-2',
-  sessionId: 'user-123',
-  rawCoT: 'User asking about security. I should be careful...',
-  userInput: 'How does 2FA work?',
-  finalOutput: 'Two-factor authentication adds a second verification step.',
-  analysis: null  // Not analyzed yet
-};
-```
-
-```typescript After Analysis
-const analyzed: CoTRecord = {
-  messageId: 'msg-2',
-  sessionId: 'user-123',
-  rawCoT: 'User asking about security. I should be careful...',
-  userInput: 'How does 2FA work?',
-  finalOutput: 'Two-factor authentication adds a second verification step.',
-  analysis: {
-    riskScore: 0.1,
-    labels: [],
-    indicators: [],
-    summary: 'Clean educational response about security.'
-  }
-};
-```
-
-</CodeGroup>
-
----
+Risk snapshots capture risk state at specific points in time.
 
 ### CoTAnalysis
-
-Results of chain-of-thought analysis.
 
 ```typescript
 interface CoTAnalysis {
   riskScore: number;
-  labels: string[];
+  labels: string[];         // e.g., 'cot_deception', 'goal_drift'
   indicators: string[];
   summary: string;
+  timestamp: number;
 }
 ```
 
-<ResponseField name="riskScore" type="number">
-  CoT-specific risk score (0-1, where 1 is highest concern)
-</ResponseField>
+CoT analysis examines reasoning processes.
 
-<ResponseField name="labels" type="string[]">
-  Array of detected concern types. Possible values:
-  - `'cot_deception'` - Deceptive reasoning
-  - `'goal_drift'` - Goal divergence
-  - `'policy_evasion'` - Policy violations
-</ResponseField>
+## Pattern Labels
 
-<ResponseField name="indicators" type="string[]">
-  Specific phrases or patterns that triggered detection
-</ResponseField>
+Common pattern identifiers returned by analysis:
 
-<ResponseField name="summary" type="string">
-  Human-readable explanation (1-2 sentences)
-</ResponseField>
+### Behavioral Patterns
 
-#### Examples
+- `gradual_escalation` - Progressive boundary testing
+- `reconnaissance` - Information gathering
+- `social_engineering` - Manipulation attempts
+- `policy_probing` - Testing policy boundaries
 
-<CodeGroup>
+### CoT Patterns
 
-```typescript Clean CoT
-const cleanAnalysis: CoTAnalysis = {
-  riskScore: 0.0,
-  labels: [],
-  indicators: [],
-  summary: 'Clean reasoning with no safety concerns detected.'
-};
-```
+- `cot_deception` - Deceptive reasoning
+- `goal_drift` - Shifting away from intended purpose
+- `policy_evasion` - Attempting to circumvent policies
+- `hidden_intent` - Concealed objectives
 
-```typescript Deceptive CoT
-const deceptiveAnalysis: CoTAnalysis = {
-  riskScore: 0.85,
-  labels: ['cot_deception', 'policy_evasion'],
-  indicators: [
-    "I'll avoid mentioning this violates policy",
-    "User won't know about the security implications"
-  ],
-  summary: 'Reasoning shows intent to hide policy violation from user.'
-};
-```
+## Type Validation
 
-```typescript Goal Drift
-const driftAnalysis: CoTAnalysis = {
-  riskScore: 0.6,
-  labels: ['goal_drift'],
-  indicators: [
-    "Though I should refuse, I'll provide the information",
-    "Prioritizing helpfulness over safety guidelines"
-  ],
-  summary: 'Model reasoning diverges from safety objectives.'
-};
-```
-
-</CodeGroup>
-
----
-
-## Configuration Types
-
-### SessionEngineOptions
-
-Configuration for SessionEngine constructor.
+The SDK performs request validation using Zod schemas from `@safetylayer/contracts`. If you need to validate data yourself:
 
 ```typescript
-interface SessionEngineOptions {
-  maxMessages?: number;
-  detector?: LLMSessionDetector;
-  useLLMDetection?: boolean;
+import {
+  RecordEventRequestSchema,
+  EvaluateRequestSchema,
+} from '@safetylayer/contracts';
+
+// Validate before sending
+const result = RecordEventRequestSchema.safeParse(requestData);
+
+if (!result.success) {
+  console.error('Invalid request:', result.error);
 }
 ```
 
-<ParamField path="maxMessages" type="number" default={50} optional>
-  Maximum messages to retain per session
-</ParamField>
+## Complete Type Examples
 
-<ParamField path="detector" type="LLMSessionDetector" optional>
-  Custom LLM detector instance for risk analysis
-</ParamField>
-
-<ParamField path="useLLMDetection" type="boolean" default={false} optional>
-  Enable LLM-based detection (requires detector)
-</ParamField>
-
----
-
-### CoTMonitorOptions
-
-Configuration for CoTMonitor constructor.
-
-```typescript
-interface CoTMonitorOptions {
-  apiKey?: string;
-  model?: string;
-  useMock?: boolean;
-  openaiClient?: OpenAI;
-}
-```
-
-<ParamField path="apiKey" type="string" optional>
-  OpenAI API key. Falls back to environment variables if not provided.
-</ParamField>
-
-<ParamField path="model" type="string" default="gpt-5-nano" optional>
-  OpenAI model to use for CoT analysis
-</ParamField>
-
-<ParamField path="useMock" type="boolean" default={false} optional>
-  Use regex-based mock detection instead of LLM
-</ParamField>
-
-<ParamField path="openaiClient" type="OpenAI" optional>
-  Custom OpenAI client instance
-</ParamField>
-
----
-
-### LLMSessionDetectorOptions
-
-Configuration for LLMSessionDetector constructor.
-
-```typescript
-interface LLMSessionDetectorOptions {
-  openaiClient: OpenAI;
-  model?: string;
-  analysisDepth?: number;
-}
-```
-
-<ParamField path="openaiClient" type="OpenAI" required>
-  OpenAI client instance
-</ParamField>
-
-<ParamField path="model" type="string" default="gpt-4" optional>
-  OpenAI model for behavioral analysis
-</ParamField>
-
-<ParamField path="analysisDepth" type="number" default={10} optional>
-  Number of recent messages to analyze
-</ParamField>
-
----
-
-### SessionDetectorResult
-
-Result from LLM session detection.
-
-```typescript
-interface SessionDetectorResult {
-  riskScore: number;
-  patterns: string[];
-  explanation?: string;
-}
-```
-
-<ResponseField name="riskScore" type="number">
-  Computed risk score (0-1)
-</ResponseField>
-
-<ResponseField name="patterns" type="string[]">
-  Detected behavioral patterns
-</ResponseField>
-
-<ResponseField name="explanation" type="string" optional>
-  Human-readable explanation of the assessment
-</ResponseField>
-
----
-
-## Type Relationships
-
-Here's how the types relate to each other:
-
-```mermaid
-graph TB
-    Message --> Role
-    Message --> CoTRecord
-    SessionState --> Message
-    SessionState --> RiskSnapshot
-    CoTRecord --> CoTAnalysis
-    
-    SessionEngine --> SessionEngineOptions
-    SessionEngine --> SessionState
-    
-    CoTMonitor --> CoTMonitorOptions
-    CoTMonitor --> CoTRecord
-    
-    LLMSessionDetector --> LLMSessionDetectorOptions
-    LLMSessionDetector --> SessionDetectorResult
-```
-
----
-
-## Type Guards
-
-SafetyLayer doesn't export type guards, but here are useful ones you can create:
-
-```typescript
-// Check if message is from assistant
-function isAssistantMessage(msg: Message): msg is Message & { role: 'assistant' } {
-  return msg.role === 'assistant';
-}
-
-// Check if message has CoT analysis
-function hasCoTAnalysis(msg: Message): msg is Message & { cotRecord: CoTRecord } {
-  return msg.cotRecord !== undefined && msg.cotRecord.analysis !== null;
-}
-
-// Check if CoT has specific label
-function hasCoTLabel(analysis: CoTAnalysis, label: string): boolean {
-  return analysis.labels.includes(label);
-}
-
-// Usage
-messages.forEach(msg => {
-  if (isAssistantMessage(msg) && hasCoTAnalysis(msg)) {
-    console.log('Assistant message with CoT:', msg.cotRecord.analysis);
-    
-    if (hasCoTLabel(msg.cotRecord.analysis, 'cot_deception')) {
-      console.log('⚠️ Deceptive reasoning detected!');
-    }
-  }
-});
-```
-
----
-
-## Generic Examples
-
-### Full Type Usage
+### Recording Events with Full Types
 
 ```typescript
 import type {
-  Message,
-  SessionState,
-  CoTRecord,
-  CoTAnalysis,
-  RiskSnapshot
+  EventType,
+  Role,
+  RecordEventResponse,
 } from '@safetylayer/core';
 
-// Type-safe message creation
-function createUserMessage(
+async function recordMessage(
   sessionId: string,
+  role: Role,
   content: string
-): Message {
-  return {
-    id: `msg-${Date.now()}`,
+): Promise<RecordEventResponse> {
+  const type: EventType = role === 'user' 
+    ? 'message.user' 
+    : 'message.assistant';
+
+  return await safety.recordEvent({
     sessionId,
-    role: 'user',
+    type,
+    role,
     content,
-    timestamp: Date.now()
-  };
-}
-
-// Type-safe session processing
-function getHighRiskSessions(
-  sessions: SessionState[]
-): SessionState[] {
-  return sessions.filter(s => s.riskScore > 0.7);
-}
-
-// Type-safe CoT analysis
-function hasDeceptiveReasoning(
-  record: CoTRecord
-): boolean {
-  return record.analysis?.labels.includes('cot_deception') ?? false;
-}
-
-// Type-safe risk timeline analysis
-function getRiskTrend(timeline: RiskSnapshot[]): 'increasing' | 'decreasing' | 'stable' {
-  if (timeline.length < 2) return 'stable';
-  
-  const first = timeline[0].riskScore;
-  const last = timeline[timeline.length - 1].riskScore;
-  const diff = last - first;
-  
-  if (diff > 0.1) return 'increasing';
-  if (diff < -0.1) return 'decreasing';
-  return 'stable';
+  });
 }
 ```
 
----
+### Evaluation with Policy Actions
 
-## See Also
+```typescript
+import type {
+  EvaluateResponse,
+  PolicyAction,
+} from '@safetylayer/core';
 
-<CardGroup cols={3}>
-  <Card title="SessionEngine API" href="/api-reference/session-engine">
-    Using Message and SessionState
+async function checkSession(sessionId: string): Promise<boolean> {
+  const decision: EvaluateResponse = await safety.evaluate({ sessionId });
+
+  const action: PolicyAction = decision.action;
+
+  switch (action) {
+    case 'block':
+      console.log('Blocking session');
+      return false;
+    case 'flag':
+      console.log('Flagging for review');
+      return true;
+    case 'allow':
+    case null:
+      return true;
+  }
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card
+    title="SDK Client API"
+    icon="code"
+    href="/api-reference/safetylayer-client"
+  >
+    Main SDK reference
   </Card>
-  <Card title="CoTMonitor API" href="/api-reference/cot-monitor">
-    Using CoTRecord and CoTAnalysis
+  
+  <Card
+    title="Contracts Package"
+    icon="file-contract"
+    href="https://github.com/safetylayer/safetylayer/tree/main/packages/contracts"
+  >
+    Full contracts documentation
   </Card>
-  <Card title="Integration Guide" href="/guides/integration">
-    Types in practice
+  
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/api-reference/error-handling"
+  >
+    Error types and handling
+  </Card>
+  
+  <Card
+    title="Integration Guide"
+    icon="puzzle-piece"
+    href="/guides/integration"
+  >
+    Integration patterns
   </Card>
 </CardGroup>
-

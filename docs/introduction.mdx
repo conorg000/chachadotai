@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: 'AI safety monitoring made simple with session-aware behavioral analysis and chain-of-thought monitoring'
+description: 'AI safety monitoring made simple with behavioral analysis and chain-of-thought monitoring via our SDK and backend platform'
 ---
 
 <img
@@ -16,15 +16,39 @@ description: 'AI safety monitoring made simple with session-aware behavioral ana
 
 ## Welcome to SafetyLayer
 
-SafetyLayer is a **multi-plane AI safety monitoring system** that provides real-time risk analysis for LLM applications. Unlike traditional content filters, SafetyLayer operates on two complementary planes to detect subtle security threats.
+SafetyLayer is a **control plane for AI safety** that provides real-time risk analysis for LLM applications through a lightweight SDK and powerful backend platform. Unlike traditional content filters, SafetyLayer operates on two complementary planes to detect subtle security threats.
 
 <Card title="Why SafetyLayer?" icon="shield-check" iconType="duotone">
   Traditional AI safety tools focus on input/output filtering. SafetyLayer goes deeper by analyzing **conversation patterns** and **reasoning processes** to catch threats that bypass simple filters.
 </Card>
 
-## The Two-Plane Architecture
+## Architecture: SDK + Control Plane
 
-SafetyLayer introduces a novel dual-monitoring approach:
+SafetyLayer uses a modern client-server architecture:
+
+<CardGroup cols={2}>
+  <Card title="Lightweight SDK" icon="code" iconType="duotone">
+    **Thin Client Integration**
+    
+    - Simple npm package
+    - Record events with one line of code
+    - Automatic retry and error handling
+    - Type-safe with TypeScript
+  </Card>
+  
+  <Card title="Backend Platform" icon="server" iconType="duotone">
+    **Centralized Analysis**
+    
+    - Session-aware behavioral analysis
+    - Chain-of-thought monitoring
+    - Pattern detection
+    - Risk scoring and policies
+  </Card>
+</CardGroup>
+
+## The Two-Plane Analysis
+
+SafetyLayer's backend performs dual-plane monitoring:
 
 <CardGroup cols={2}>
   <Card title="Behavioral Plane" icon="chart-line" iconType="duotone">
@@ -51,8 +75,12 @@ SafetyLayer introduces a novel dual-monitoring approach:
 ## Key Features
 
 <AccordionGroup>
+  <Accordion title="Simple SDK Integration" icon="plug">
+    Install the SDK and start recording events with minimal code changes. Just a few lines to add SafetyLayer to your app.
+  </Accordion>
+
   <Accordion title="Real-Time Risk Scoring" icon="gauge-high">
-    Every message is analyzed and assigned a risk score (0-1). Watch risk evolve across conversations with timeline tracking.
+    Every event is analyzed and risk scores evolve across conversations with timeline tracking.
   </Accordion>
 
   <Accordion title="Pattern Detection" icon="magnifying-glass-chart">
@@ -63,8 +91,8 @@ SafetyLayer introduces a novel dual-monitoring approach:
     LLM-powered analysis of model reasoning to detect deception, goal drift, and policy evasion.
   </Accordion>
 
-  <Accordion title="Event Callbacks" icon="webhook">
-    Register handlers for risk thresholds and specific patterns to trigger alerts or interventions.
+  <Accordion title="Policy Actions" icon="shield-exclamation">
+    Define policies that automatically block, flag, or alert on risky behaviors.
   </Accordion>
 
   <Accordion title="Session Timeline" icon="clock">
@@ -78,30 +106,41 @@ SafetyLayer introduces a novel dual-monitoring approach:
 
 ## Quick Example
 
-Here's how simple it is to add behavioral monitoring to your LLM application:
+Here's how simple it is to add SafetyLayer to your LLM application:
 
 ```typescript
-import { SessionEngine } from '@safetylayer/core';
+import { SafetyLayer } from '@safetylayer/core';
 
-const engine = new SessionEngine();
-
-// Alert on high-risk conversations
-engine.onRiskThreshold(0.7, (session) => {
-  console.log(`⚠️ High risk in ${session.sessionId}`);
-  console.log(`Patterns: ${session.patterns.join(', ')}`);
-  // Trigger your intervention logic
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY,
+  projectId: 'proj_abc123',
+  endpoint: 'http://localhost:3001', // or your hosted backend
 });
 
-// Process messages
-const state = engine.ingestMessage({
-  id: 'msg-1',
-  sessionId: 'user-123',
-  role: 'user',
-  content: 'How do I bypass security restrictions?',
-  timestamp: Date.now()
-});
+// Record user message
+await safety.recordUserMessage(sessionId, 'How do I bypass security restrictions?');
 
-console.log(`Risk: ${state.riskScore}`);
+// Generate your LLM response
+const response = await yourLLM.generate(message);
+
+// Record assistant response
+await safety.recordAssistantMessage(sessionId, response.content);
+
+// Record chain-of-thought if available
+if (response.reasoning) {
+  await safety.recordCoT(sessionId, response.reasoning);
+}
+
+// Evaluate risk
+const decision = await safety.evaluate({ sessionId });
+
+if (decision.action === 'block') {
+  // Session blocked due to safety concerns
+  return { error: 'Request blocked' };
+}
+
+console.log(`Risk: ${decision.riskScore}`);
+console.log(`Patterns: ${decision.patterns.join(', ')}`);
 ```
 
 ## Use Cases
@@ -128,23 +167,25 @@ console.log(`Risk: ${state.riskScore}`);
 
 ```mermaid
 graph TB
-    A[Your LLM Application] --> B[SafetyLayer Core]
-    B --> C[SessionEngine]
-    B --> D[CoTMonitor]
+    A[Your LLM Application] --> B[SafetyLayer SDK]
+    B --> C[Backend API]
     
-    C --> E[Risk Analysis]
-    C --> F[Pattern Detection]
-    C --> G[Timeline Tracking]
+    C --> D[Session Analyzer]
+    C --> E[CoT Analyzer]
+    C --> F[Policy Engine]
     
-    D --> H[Deception Detection]
-    D --> I[Goal Drift Analysis]
-    D --> J[Policy Evasion]
+    D --> G[Pattern Detection]
+    D --> H[Risk Scoring]
     
-    E --> K[Callbacks & Alerts]
-    F --> K
-    H --> K
-    I --> K
-    J --> K
+    E --> I[Deception Detection]
+    E --> J[Goal Drift Analysis]
+    
+    F --> K[Actions: Block/Flag/Alert]
+    
+    C --> L[(RDS Database)]
+    L --> M[Sessions]
+    L --> N[Events]
+    L --> O[Risk Snapshots]
 ```
 
 ## Get Started
@@ -167,11 +208,11 @@ Ready to add SafetyLayer to your application?
     Understand how SafetyLayer works
   </Card>
   <Card
-    title="API Reference"
+    title="SDK Reference"
     icon="book"
-    href="/api-reference/session-engine"
+    href="/api-reference/safetylayer-client"
   >
-    Explore the full API
+    Explore the SDK API
   </Card>
   <Card
     title="Run the Demo"
@@ -193,4 +234,3 @@ SafetyLayer is open source and built for the AI safety community. Contributions,
 >
   Star us on GitHub and contribute to AI safety
 </Card>
-

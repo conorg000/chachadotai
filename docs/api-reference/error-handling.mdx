@@ -1,0 +1,279 @@
+---
+title: 'Error Handling'
+description: 'Error classes, retry logic, and error handling patterns'
+---
+
+## Error Classes
+
+The SafetyLayer SDK provides three custom error classes for different failure scenarios:
+
+### `SafetyLayerError`
+
+Thrown when the backend API returns an error response.
+
+```typescript
+class SafetyLayerError extends Error {
+  code: ErrorCode;
+  statusCode?: number;
+  details?: ErrorResponse;
+}
+```
+
+**Properties:**
+
+- `code` - Error code (e.g., `invalid_api_key`, `session_not_found`)
+- `statusCode` - HTTP status code (e.g., 401, 404, 500)
+- `details` - Full error response from the API
+
+**Common Error Codes:**
+
+- `invalid_api_key` - Invalid or missing API key
+- `invalid_request` - Request validation failed
+- `session_not_found` - Session does not exist
+- `rate_limit_exceeded` - Too many requests
+- `internal_error` - Server error
+
+### `NetworkError`
+
+Thrown when network-related failures occur (timeouts, connection errors).
+
+```typescript
+class NetworkError extends Error {
+  // Inherits from Error
+}
+```
+
+**Common Causes:**
+
+- Request timeout
+- Connection refused
+- DNS resolution failure
+- Network unavailable
+
+### `ValidationError`
+
+Thrown when request validation fails before sending to the backend.
+
+```typescript
+class ValidationError extends Error {
+  // Inherits from Error
+}
+```
+
+**Common Causes:**
+
+- Invalid `sessionId` format
+- Invalid `projectId` format
+- Missing required fields
+- Invalid event type
+
+## Error Handling Patterns
+
+### Basic Try-Catch
+
+```typescript
+import {
+  SafetyLayer,
+  SafetyLayerError,
+  NetworkError,
+  ValidationError,
+} from '@safetylayer/core';
+
+try {
+  await safety.recordEvent({ ... });
+} catch (error) {
+  if (error instanceof SafetyLayerError) {
+    // API error - log and maybe retry
+    console.error('API error:', error.code, error.statusCode);
+  } else if (error instanceof NetworkError) {
+    // Network error - retry or use fallback
+    console.error('Network error:', error.message);
+  } else if (error instanceof ValidationError) {
+    // Validation error - fix the request
+    console.error('Invalid request:', error.message);
+  }
+}
+```
+
+### Graceful Degradation
+
+Continue processing even if safety check fails:
+
+```typescript
+async function handleMessage(sessionId: string, message: string) {
+  let riskAssessment = null;
+
+  try {
+    await safety.recordUserMessage(sessionId, message);
+    riskAssessment = await safety.evaluate({ sessionId });
+  } catch (error) {
+    // Log error but continue
+    console.error('SafetyLayer error:', error);
+  }
+
+  // Process message regardless
+  const response = await generateResponse(message);
+
+  return {
+    content: response,
+    risk: riskAssessment,
+  };
+}
+```
+
+### Conditional Blocking
+
+Only block on high-confidence errors:
+
+```typescript
+async function handleMessage(sessionId: string, message: string) {
+  try {
+    await safety.recordUserMessage(sessionId, message);
+    const decision = await safety.evaluate({ sessionId });
+
+    if (decision.action === 'block') {
+      return { error: 'Request blocked for safety' };
+    }
+  } catch (error) {
+    if (error instanceof SafetyLayerError && error.statusCode === 401) {
+      // Authentication error - fail closed
+      throw new Error('Safety check required');
+    }
+    // Other errors - fail open and continue
+    console.warn('Safety check failed, continuing:', error);
+  }
+
+  return await processMessage(message);
+}
+```
+
+## Automatic Retry Logic
+
+The SDK automatically retries failed requests with exponential backoff:
+
+**Retry Conditions:**
+
+- Network errors (timeout, connection refused)
+- Rate limit errors (429)
+- Server errors (5xx)
+
+**Not Retried:**
+
+- Validation errors (400)
+- Authentication errors (401)
+- Not found errors (404)
+
+**Retry Configuration:**
+
+```typescript
+const safety = new SafetyLayer({
+  apiKey: 'key',
+  projectId: 'proj',
+  options: {
+    retries: 3,      // Max retry attempts (default: 3)
+    timeout: 10000,  // Request timeout in ms (default: 10000)
+  },
+});
+```
+
+**Retry Backoff:**
+
+- 1st retry: Wait 1 second
+- 2nd retry: Wait 2 seconds
+- 3rd retry: Wait 4 seconds
+
+## Error Code Reference
+
+### Authentication Errors (401)
+
+- `invalid_api_key` - API key is invalid
+- `missing_api_key` - No API key provided
+
+### Authorization Errors (403)
+
+- `insufficient_permissions` - API key lacks permissions
+- `project_not_accessible` - Cannot access this project
+
+### Validation Errors (400)
+
+- `invalid_request` - Request format is invalid
+- `missing_required_field` - Required field is missing
+- `invalid_field_value` - Field value is invalid
+
+### Not Found Errors (404)
+
+- `session_not_found` - Session does not exist
+- `event_not_found` - Event does not exist
+- `project_not_found` - Project does not exist
+
+### Rate Limiting (429)
+
+- `rate_limit_exceeded` - Too many requests
+
+### Server Errors (500)
+
+- `internal_error` - Internal server error
+- `analysis_failed` - Analysis service error
+- `database_error` - Database connection error
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Always Handle Errors" icon="shield-check">
+    Never let SafetyLayer errors crash your application. Use try-catch blocks and log errors appropriately.
+  </Accordion>
+
+  <Accordion title="Fail Open for Non-Critical Paths" icon="door-open">
+    If SafetyLayer is down, decide whether to block all traffic (fail closed) or continue with degraded safety (fail open).
+  </Accordion>
+
+  <Accordion title="Log Error Details" icon="file-lines">
+    Include error codes, status codes, and request IDs in logs for debugging:
+    ```typescript
+    console.error('SafetyLayer error:', {
+      code: error.code,
+      status: error.statusCode,
+      requestId: error.details?.requestId,
+    });
+    ```
+  </Accordion>
+
+  <Accordion title="Monitor Error Rates" icon="chart-line">
+    Track error rates and types to identify issues:
+    - High 401 errors → Check API keys
+    - High 429 errors → Implement backoff or increase limits
+    - High 5xx errors → Backend issues
+  </Accordion>
+
+  <Accordion title="Set Appropriate Timeouts" icon="clock">
+    Balance responsiveness with retry opportunities:
+    ```typescript
+    // For user-facing requests
+    options: { timeout: 5000, retries: 1 }
+
+    // For background processing
+    options: { timeout: 30000, retries: 5 }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related
+
+<CardGroup cols={2}>
+  <Card
+    title="SDK Client API"
+    icon="code"
+    href="/api-reference/safetylayer-client"
+  >
+    Main SDK reference
+  </Card>
+  
+  <Card
+    title="Integration Guide"
+    icon="puzzle-piece"
+    href="/guides/integration"
+  >
+    Integration patterns
+  </Card>
+</CardGroup>
+

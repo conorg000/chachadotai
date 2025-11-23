@@ -53,20 +53,18 @@
       "pages": ["introduction", "quickstart", "architecture"]
     },
     {
-      "group": "API Documentation",
+      "group": "SDK Reference",
       "pages": [
-        "api-reference/session-engine",
-        "api-reference/cot-monitor",
-        "api-reference/llm-detector",
+        "api-reference/safetylayer-client",
+        "api-reference/error-handling",
         "api-reference/types"
       ]
     },
     {
       "group": "Integration Guides",
       "pages": [
-        "guides/behavioral-monitoring",
-        "guides/cot-analysis",
         "guides/integration",
+        "guides/backend-integration",
         "guides/testing"
       ]
     },

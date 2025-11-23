@@ -1,31 +1,59 @@
 /**
- * @safetylayer/core
+ * @safetylayer/core - SafetyLayer SDK Client
  *
- * Core library for session-aware behavioral security and Chain-of-Thought monitoring.
+ * A thin client for recording events and evaluating risk via the SafetyLayer backend API.
+ *
+ * @example
+ * ```typescript
+ * import { SafetyLayer } from '@safetylayer/core';
+ *
+ * const safety = new SafetyLayer({
+ *   apiKey: process.env.SAFETYLAYER_API_KEY,
+ *   projectId: 'proj_abc123',
+ *   endpoint: 'http://localhost:3001',
+ * });
+ *
+ * // Record events
+ * await safety.recordUserMessage(sessionId, 'Hello!');
+ *
+ * // Evaluate risk
+ * const decision = await safety.evaluate({ sessionId });
+ * ```
  */
 
-// Export all types
+// Main SDK client
+export { SafetyLayer } from "./SafetyLayer.js";
+export type { SafetyLayerConfig } from "./SafetyLayer.js";
+
+// Error classes
+export {
+  NetworkError,
+  SafetyLayerError,
+  ValidationError,
+} from "./http/errors.js";
+
+// Re-export commonly used types from contracts
 export type {
+  CoTAnalysis as CoTAnalysisContract,
+  EvaluateResponse,
+  Event,
+  EventType,
+  PolicyAction,
+  RecordEventResponse,
+  RiskSnapshot as RiskSnapshotContract,
   Role,
+  Session,
+} from "@safetylayer/contracts";
+
+export { ERROR_CODES, EVENT_TYPES } from "@safetylayer/contracts";
+
+// DEPRECATED: Old types (for backward compatibility)
+// Use @safetylayer/contracts instead
+export type {
+  CoTAnalysis,
+  CoTRecord,
   Message,
   RiskSnapshot,
+  Role as RoleDeprecated,
   SessionState,
-  CoTAnalysis,
-  CoTRecord
-} from './types.js';
-
-// Export SessionEngine
-export { SessionEngine } from './SessionEngine.js';
-export type { SessionEngineOptions } from './SessionEngine.js';
-
-// Export LLMSessionDetector
-export { LLMSessionDetector } from './LLMSessionDetector.js';
-export type {
-  SessionDetectorResult,
-  LLMSessionDetectorOptions
-} from './LLMSessionDetector.js';
-
-// Export CoTMonitor
-export { CoTMonitor } from './CoTMonitor.js';
-export type { CoTMonitorOptions } from './CoTMonitor.js';
-
+} from "./types.js";

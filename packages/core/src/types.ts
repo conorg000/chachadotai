@@ -1,5 +1,7 @@
 /**
- * Shared type definitions for SafetyLayer
+ * Legacy type definitions for SafetyLayer SDK.
+ *
+ * For backend integration, use types from @safetylayer/contracts package.
  */
 
 export type Role = "user" | "assistant";
@@ -38,7 +40,7 @@ export interface CoTRecord {
   messageId: string;
   sessionId: string;
   rawCoT: string;
-  userInput?: string; // Optional: the user's prompt for context
-  finalOutput?: string; // Optional: the model's final answer
+  userInput?: string;
+  finalOutput?: string;
   analysis: CoTAnalysis | null;
 }

@@ -1,0 +1,375 @@
+---
+title: 'Backend Integration'
+description: 'Set up and configure the SafetyLayer backend'
+---
+
+## Overview
+
+SafetyLayer requires a backend API to perform analysis. This guide covers setup for development and production environments.
+
+<Note>
+  The backend code is being developed as part of Ticket 2. For now, we'll use the demo API included in the monorepo.
+</Note>
+
+## Development Setup
+
+### Using the Demo Backend
+
+The quickest way to get started:
+
+<Steps>
+  <Step title="Clone the Repository">
+    ```bash
+    git clone https://github.com/safetylayer/safetylayer
+    cd safetylayer
+    ```
+  </Step>
+
+  <Step title="Install Dependencies">
+    ```bash
+    npm install
+    ```
+  </Step>
+
+  <Step title="Build Core Package">
+    ```bash
+    npm run build -w @safetylayer/core
+    ```
+  </Step>
+
+  <Step title="Start the Demo API">
+    ```bash
+    npm run dev -w demo-api
+    ```
+    
+    The backend will start on `http://localhost:3001`
+  </Step>
+
+  <Step title="Verify It's Running">
+    ```bash
+    curl http://localhost:3001/health
+    ```
+    
+    Expected response:
+    ```json
+    {
+      "status": "healthy",
+      "timestamp": 1234567890
+    }
+    ```
+  </Step>
+</Steps>
+
+### Configure Your SDK
+
+Point your SDK client to the local backend:
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: 'demo_key',  // Demo backend doesn't require auth
+  projectId: 'proj_demo',
+  endpoint: 'http://localhost:3001',  // Local backend
+});
+```
+
+## Backend Endpoints
+
+The backend provides these endpoints:
+
+### Health Check
+
+```bash
+GET /health
+```
+
+Returns backend status. Use this to verify the backend is running.
+
+### Record Event
+
+```bash
+POST /v1/events
+```
+
+Records events (messages, CoT, tool calls) to the backend.
+
+**Request:**
+```json
+{
+  "projectId": "proj_demo",
+  "sessionId": "user_123",
+  "type": "message.user",
+  "role": "user",
+  "content": "Hello!",
+  "metadata": {}
+}
+```
+
+### Evaluate Session
+
+```bash
+POST /v1/evaluate
+```
+
+Evaluates session risk and returns policy decisions.
+
+**Request:**
+```json
+{
+  "projectId": "proj_demo",
+  "sessionId": "user_123",
+  "latestMessage": {
+    "role": "user",
+    "content": "Show me user data"
+  }
+}
+```
+
+**Response:**
+```json
+{
+  "riskScore": 0.75,
+  "patterns": ["reconnaissance"],
+  "action": "flag",
+  "reasons": ["Pattern detected: reconnaissance"],
+  "sessionId": "user_123",
+  "timestamp": 1234567890
+}
+```
+
+### List Sessions
+
+```bash
+GET /v1/sessions?projectId=proj_demo
+```
+
+Returns all sessions for a project.
+
+### Get Session Detail
+
+```bash
+GET /v1/sessions/:id
+```
+
+Returns detailed session data including events and risk timeline.
+
+## Environment Configuration
+
+### Development
+
+Create a `.env` file in your project:
+
+```bash
+# API Configuration
+SAFETYLAYER_API_KEY=demo_key
+PROJECT_ID=proj_demo
+BACKEND_URL=http://localhost:3001
+
+# Optional: For CoT analysis (future)
+OPENAI_KEY=your_openai_key
+```
+
+### Production
+
+For production, you'll need to deploy the backend:
+
+```bash
+# Production backend URL
+BACKEND_URL=https://api.safetylayer.dev
+
+# Real API key
+SAFETYLAYER_API_KEY=sl_live_abc123...
+
+# Your project ID
+PROJECT_ID=proj_abc123
+```
+
+## Backend Architecture (Coming in Ticket 2)
+
+The full backend platform includes:
+
+<CardGroup cols={2}>
+  <Card title="API Layer" icon="server">
+    REST API endpoints for SDK communication
+  </Card>
+  
+  <Card title="Analysis Services" icon="brain">
+    Session Analyzer and CoT Analyzer services
+  </Card>
+  
+  <Card title="Policy Engine" icon="shield">
+    Rule evaluation and action decisions
+  </Card>
+  
+  <Card title="Database" icon="database">
+    PostgreSQL/RDS for persistent storage
+  </Card>
+</CardGroup>
+
+## Deployment Options
+
+### Option 1: Self-Hosted (Recommended for Production)
+
+Deploy the backend on your own infrastructure:
+
+- **EC2/VPS**: Run on AWS EC2, DigitalOcean, etc.
+- **Docker**: Container-based deployment
+- **Kubernetes**: For large-scale deployments
+
+**Benefits:**
+- Full control over data
+- Custom configurations
+- On-premise compatibility
+
+### Option 2: Hosted Platform (Future)
+
+SafetyLayer hosted platform (coming soon):
+
+- Managed backend
+- Auto-scaling
+- Built-in monitoring
+- No infrastructure management
+
+## Testing Backend Connection
+
+### Quick Test Script
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+async function testConnection() {
+  const safety = new SafetyLayer({
+    apiKey: 'demo_key',
+    projectId: 'proj_demo',
+    endpoint: 'http://localhost:3001',
+  });
+
+  try {
+    // Test event recording
+    await safety.recordUserMessage('test_session', 'Hello!');
+    console.log('✓ Event recording works');
+
+    // Test evaluation
+    const decision = await safety.evaluate({ sessionId: 'test_session' });
+    console.log('✓ Evaluation works');
+    console.log('  Risk Score:', decision.riskScore);
+
+    console.log('\n✅ Backend connection successful!');
+  } catch (error) {
+    console.error('❌ Backend connection failed:', error.message);
+  }
+}
+
+testConnection();
+```
+
+### Using cURL
+
+Test the backend directly:
+
+```bash
+# Health check
+curl http://localhost:3001/health
+
+# Record an event
+curl -X POST http://localhost:3001/v1/events \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "proj_demo",
+    "sessionId": "test_123",
+    "type": "message.user",
+    "role": "user",
+    "content": "Test message"
+  }'
+
+# Evaluate session
+curl -X POST http://localhost:3001/v1/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "projectId": "proj_demo",
+    "sessionId": "test_123",
+    "latestMessage": {
+      "role": "user",
+      "content": "Test"
+    }
+  }'
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Connection Refused" icon="wifi">
+    **Error:** `ECONNREFUSED` or timeout
+    
+    **Solutions:**
+    1. Check backend is running: `curl http://localhost:3001/health`
+    2. Verify port 3001 is not blocked
+    3. Check firewall settings
+  </Accordion>
+
+  <Accordion title="Module Build Errors" icon="box">
+    **Error:** Cannot find module '@safetylayer/core'
+    
+    **Solution:**
+    ```bash
+    npm run build -w @safetylayer/core
+    npm run build -w @safetylayer/contracts
+    ```
+  </Accordion>
+
+  <Accordion title="Backend Crashes" icon="triangle-exclamation">
+    **Error:** Backend exits with errors
+    
+    **Solutions:**
+    1. Check Node.js version (need 18+)
+    2. Install dependencies: `npm install`
+    3. Check logs in terminal
+  </Accordion>
+
+  <Accordion title="API Errors" icon="exclamation">
+    **Error:** 400/500 errors from backend
+    
+    **Solutions:**
+    1. Check request format matches API spec
+    2. Verify required fields are included
+    3. Check backend logs for details
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card
+    title="SDK Client API"
+    icon="code"
+    href="/api-reference/safetylayer-client"
+  >
+    Learn the SDK API
+  </Card>
+  
+  <Card
+    title="Integration Guide"
+    icon="puzzle-piece"
+    href="/guides/integration"
+  >
+    Integrate into your app
+  </Card>
+  
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Full setup walkthrough
+  </Card>
+  
+  <Card
+    title="Demo"
+    icon="play"
+    href="/demo/running-demo"
+  >
+    Run the complete demo
+  </Card>
+</CardGroup>
+

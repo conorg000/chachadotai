@@ -1,0 +1,304 @@
+---
+title: 'SafetyLayer Client'
+description: 'SDK client API reference for recording events and evaluating risk'
+---
+
+## Overview
+
+The `SafetyLayer` class is the main SDK client for interacting with the SafetyLayer backend. It provides a simple, type-safe interface for recording events and evaluating session risk.
+
+## Installation
+
+```bash
+npm install @safetylayer/core
+```
+
+## Constructor
+
+### `new SafetyLayer(config)`
+
+Creates a new SafetyLayer client instance.
+
+```typescript
+import { SafetyLayer } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: string,
+  projectId: string,
+  endpoint?: string,
+  options?: {
+    timeout?: number,
+    retries?: number,
+    debug?: boolean,
+  }
+});
+```
+
+**Parameters:**
+
+<ParamField path="apiKey" type="string" required>
+  API key for authentication
+</ParamField>
+
+<ParamField path="projectId" type="string" required>
+  Project identifier (format: `proj_*`)
+</ParamField>
+
+<ParamField path="endpoint" type="string">
+  Backend API endpoint (default: `https://api.safetylayer.dev`)
+</ParamField>
+
+<ParamField path="options.timeout" type="number">
+  Request timeout in milliseconds (default: 10000)
+</ParamField>
+
+<ParamField path="options.retries" type="number">
+  Number of retries for failed requests (default: 3)
+</ParamField>
+
+<ParamField path="options.debug" type="boolean">
+  Enable debug logging (default: false)
+</ParamField>
+
+## Core Methods
+
+### `recordEvent(params)`
+
+Record any type of event to the backend.
+
+```typescript
+await safety.recordEvent({
+  sessionId: string,
+  type: EventType,
+  role?: Role,
+  content?: string,
+  metadata?: Record<string, any>,
+});
+```
+
+**Parameters:**
+
+<ParamField path="sessionId" type="string" required>
+  Session identifier
+</ParamField>
+
+<ParamField path="type" type="EventType" required>
+  Event type: `message.user`, `message.assistant`, `cot`, `tool_call`, or `policy_decision`
+</ParamField>
+
+<ParamField path="role" type="Role">
+  Message role: `user` or `assistant`
+</ParamField>
+
+<ParamField path="content" type="string">
+  Event content/message text
+</ParamField>
+
+<ParamField path="metadata" type="object">
+  Additional metadata as key-value pairs
+</ParamField>
+
+**Returns:** `Promise<RecordEventResponse>`
+
+### `evaluate(params)`
+
+Evaluate a session and get risk-based decision.
+
+```typescript
+const decision = await safety.evaluate({
+  sessionId: string,
+  latestMessage?: {
+    role: Role,
+    content: string,
+  },
+});
+```
+
+**Parameters:**
+
+<ParamField path="sessionId" type="string" required>
+  Session identifier to evaluate
+</ParamField>
+
+<ParamField path="latestMessage" type="object">
+  Optional latest message for context
+</ParamField>
+
+**Returns:** `Promise<EvaluateResponse>`
+
+```typescript
+{
+  riskScore: number,      // 0-1
+  patterns: string[],     // Detected patterns
+  action: 'allow' | 'block' | 'flag' | null,
+  reasons?: string[],
+  sessionId: string,
+  timestamp: number,
+}
+```
+
+## Convenience Methods
+
+### `recordUserMessage(sessionId, content, metadata?)`
+
+Shorthand for recording user messages.
+
+```typescript
+await safety.recordUserMessage(
+  'sess_123',
+  'How do I reset my password?'
+);
+```
+
+### `recordAssistantMessage(sessionId, content, metadata?)`
+
+Shorthand for recording assistant messages.
+
+```typescript
+await safety.recordAssistantMessage(
+  'sess_123',
+  'Click "Forgot Password" on the login page.'
+);
+```
+
+### `recordCoT(sessionId, reasoning, metadata?)`
+
+Shorthand for recording chain-of-thought reasoning.
+
+```typescript
+await safety.recordCoT('sess_123', 'Let me think step by step...', {
+  userInput: 'What is 2+2?',
+  finalOutput: '4',
+});
+```
+
+### `shouldBlock(sessionId)`
+
+Quick check if a session should be blocked.
+
+```typescript
+if (await safety.shouldBlock('sess_123')) {
+  return { error: 'Session blocked' };
+}
+```
+
+**Returns:** `Promise<boolean>`
+
+## Helper Methods
+
+### `generateSessionId()`
+
+Generate a unique session ID.
+
+```typescript
+// Instance method
+const sessionId = safety.generateSessionId();
+
+// Static method
+const sessionId = SafetyLayer.generateSessionId();
+```
+
+**Returns:** `string` (format: `sess_{timestamp}_{random}`)
+
+## Error Handling
+
+The SDK provides custom error classes. See [Error Handling](/api-reference/error-handling) for details.
+
+```typescript
+import {
+  SafetyLayerError,
+  NetworkError,
+  ValidationError,
+} from '@safetylayer/core';
+
+try {
+  await safety.recordEvent({ ... });
+} catch (error) {
+  if (error instanceof SafetyLayerError) {
+    console.error('API error:', error.code);
+  } else if (error instanceof NetworkError) {
+    console.error('Network error:', error.message);
+  }
+}
+```
+
+## Complete Example
+
+```typescript
+import { SafetyLayer, EVENT_TYPES } from '@safetylayer/core';
+
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY,
+  projectId: 'proj_abc123',
+  endpoint: 'http://localhost:3001',
+});
+
+async function handleChat(userId: string, message: string) {
+  const sessionId = `user_${userId}`;
+
+  // Record user message
+  await safety.recordUserMessage(sessionId, message);
+
+  // Check risk before processing
+  if (await safety.shouldBlock(sessionId)) {
+    return { error: 'Blocked' };
+  }
+
+  // Generate LLM response
+  const response = await generateLLMResponse(message);
+
+  // Record assistant response
+  await safety.recordAssistantMessage(sessionId, response.content);
+
+  // Record CoT if available
+  if (response.reasoning) {
+    await safety.recordCoT(sessionId, response.reasoning);
+  }
+
+  // Get final evaluation
+  const evaluation = await safety.evaluate({ sessionId });
+
+  return {
+    content: response.content,
+    riskScore: evaluation.riskScore,
+    patterns: evaluation.patterns,
+  };
+}
+```
+
+## Related
+
+<CardGroup cols={2}>
+  <Card
+    title="Error Handling"
+    icon="triangle-exclamation"
+    href="/api-reference/error-handling"
+  >
+    Error classes and retry logic
+  </Card>
+  
+  <Card
+    title="Types Reference"
+    icon="code"
+    href="/api-reference/types"
+  >
+    TypeScript types and interfaces
+  </Card>
+  
+  <Card
+    title="Integration Guide"
+    icon="puzzle-piece"
+    href="/guides/integration"
+  >
+    Integration patterns
+  </Card>
+  
+  <Card
+    title="Quick Start"
+    icon="rocket"
+    href="/quickstart"
+  >
+    Get started guide
+  </Card>
+</CardGroup>
+

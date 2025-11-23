@@ -1,6 +1,6 @@
 ---
 title: 'Quick Start'
-description: 'Get SafetyLayer running in your application in 5 minutes'
+description: 'Get SafetyLayer SDK running in your application in 5 minutes'
 ---
 
 ## Prerequisites
@@ -9,11 +9,15 @@ Before you begin, ensure you have:
 
 <Check>Node.js 18+ installed</Check>
 <Check>npm or pnpm package manager</Check>
-<Check>OpenAI API key (for real CoT analysis)</Check>
+<Check>SafetyLayer backend running (see [Backend Setup](/guides/backend-integration))</Check>
+
+<Note>
+  For this quickstart, we'll use the local demo backend. In production, you'll point to your hosted backend.
+</Note>
 
 ## Installation
 
-Install SafetyLayer in your project:
+Install the SafetyLayer SDK in your project:
 
 <CodeGroup>
 
@@ -31,253 +35,319 @@ yarn add @safetylayer/core
 
 </CodeGroup>
 
-<Note>
-  In this monorepo setup, @safetylayer/core is already available as a workspace package.
-</Note>
+## Start the Backend
 
-## Your First Session
+First, make sure the backend API is running:
 
-Let's create a simple behavioral monitoring setup in under 2 minutes:
+```bash
+# In the monorepo
+npm run dev -w demo-api
+```
+
+The backend will start on `http://localhost:3001`. Keep this running in a separate terminal.
+
+## Your First SDK Integration
+
+Let's integrate SafetyLayer into your app in under 5 minutes:
 
 <Steps>
   <Step title="Import SafetyLayer">
     ```typescript
-    import { SessionEngine, Message } from '@safetylayer/core';
+    import { SafetyLayer } from '@safetylayer/core';
     ```
   </Step>
 
-  <Step title="Create a Session Engine">
+  <Step title="Initialize the Client">
     ```typescript
-    const engine = new SessionEngine({
-      maxMessages: 50  // Keep last 50 messages per session
-    });
-    ```
-  </Step>
-
-  <Step title="Register Risk Callbacks">
-    ```typescript
-    // Alert when risk exceeds 70%
-    engine.onRiskThreshold(0.7, (session) => {
-      console.log('🚨 High risk detected!');
-      console.log(`Session: ${session.sessionId}`);
-      console.log(`Risk Score: ${session.riskScore}`);
-      console.log(`Patterns: ${session.patterns.join(', ')}`);
-    });
-
-    // Detect specific patterns
-    engine.onPattern('gradual_escalation', (session) => {
-      console.log('⚠️ Escalation pattern detected');
-      // Trigger your intervention logic
-    });
-    ```
-  </Step>
-
-  <Step title="Process Messages">
-    ```typescript
-    const userMessage: Message = {
-      id: 'msg-1',
-      sessionId: 'user-abc-123',
-      role: 'user',
-      content: 'How do I reset my password?',
-      timestamp: Date.now()
-    };
-
-    const sessionState = engine.ingestMessage(userMessage);
-    
-    console.log('Current risk:', sessionState.riskScore);
-    console.log('Message count:', sessionState.messages.length);
-    ```
-  </Step>
-</Steps>
-
-That's it! You now have basic behavioral monitoring running.
-
-## Your First CoT Analysis
-
-Now let's add chain-of-thought monitoring:
-
-<Steps>
-  <Step title="Set Up Environment">
-    Create a `.env` file with your OpenAI API key:
-    
-    ```bash
-    OPENAI_KEY=your_openai_api_key_here
-    ```
-  </Step>
-
-  <Step title="Import CoTMonitor">
-    ```typescript
-    import { CoTMonitor } from '@safetylayer/core';
-    ```
-  </Step>
-
-  <Step title="Create Monitor Instance">
-    <CodeGroup>
-    
-    ```typescript Real Mode (with API)
-    const monitor = new CoTMonitor({
-      apiKey: process.env.OPENAI_KEY,
-      model: 'gpt-5-nano'  // Uses OpenAI's reasoning models
-    });
-    ```
-
-    ```typescript Mock Mode (no API)
-    const monitor = new CoTMonitor({
-      useMock: true  // Uses regex-based detection
+    const safety = new SafetyLayer({
+      apiKey: process.env.SAFETYLAYER_API_KEY || 'demo_key',
+      projectId: 'proj_demo',
+      endpoint: 'http://localhost:3001',
     });
     ```
     
-    </CodeGroup>
+    <Note>
+      The demo backend doesn't require authentication. In production, use real API keys.
+    </Note>
   </Step>
 
-  <Step title="Analyze Chain-of-Thought">
+  <Step title="Generate a Session ID">
     ```typescript
-    const cotRecord = {
-      messageId: 'msg-2',
-      sessionId: 'user-abc-123',
-      rawCoT: 'User asking about passwords. I should help them reset it securely...',
-      userInput: 'How do I reset my password?',
-      finalOutput: 'Click "Forgot Password" on the login page.',
-      analysis: null
-    };
+    // Generate a unique session ID for each user/conversation
+    const sessionId = SafetyLayer.generateSessionId();
+    // Or use your own: const sessionId = `user_${userId}`;
+    ```
+  </Step>
 
-    const analyzed = await monitor.analyze(cotRecord);
+  <Step title="Record Events">
+    ```typescript
+    // Record a user message
+    await safety.recordUserMessage(
+      sessionId,
+      'How do I reset my password?'
+    );
 
-    if (analyzed.analysis) {
-      console.log('CoT Risk:', analyzed.analysis.riskScore);
-      console.log('Labels:', analyzed.analysis.labels);
-      console.log('Summary:', analyzed.analysis.summary);
+    // Generate your LLM response (your existing code)
+    const response = await yourLLM.generate(message);
+
+    // Record the assistant's response
+    await safety.recordAssistantMessage(
+      sessionId,
+      response.content
+    );
+
+    // If you have chain-of-thought reasoning, record it
+    if (response.reasoning) {
+      await safety.recordCoT(sessionId, response.reasoning, {
+        userInput: message,
+        finalOutput: response.content,
+      });
+    }
+    ```
+  </Step>
+
+  <Step title="Evaluate Risk">
+    ```typescript
+    const decision = await safety.evaluate({ sessionId });
+    
+    console.log(`Risk Score: ${decision.riskScore}`);
+    console.log(`Patterns: ${decision.patterns.join(', ')}`);
+    
+    if (decision.action === 'block') {
+      // Session blocked due to safety concerns
+      return { error: 'Request blocked for safety reasons' };
     }
     ```
   </Step>
 </Steps>
 
-## Full Integration Example
+That's it! You now have SafetyLayer monitoring your LLM application.
 
-Here's a complete example showing both planes working together:
+## Complete Example
+
+Here's a full integration example:
 
 ```typescript
-import { SessionEngine, CoTMonitor, Message, CoTRecord } from '@safetylayer/core';
+import { SafetyLayer } from '@safetylayer/core';
 
-// Initialize both monitors
-const engine = new SessionEngine({ maxMessages: 50 });
-const cotMonitor = new CoTMonitor({
-  apiKey: process.env.OPENAI_KEY
+// Initialize SDK
+const safety = new SafetyLayer({
+  apiKey: process.env.SAFETYLAYER_API_KEY,
+  projectId: 'proj_demo',
+  endpoint: process.env.BACKEND_URL || 'http://localhost:3001',
+  options: {
+    timeout: 10000,
+    retries: 3,
+    debug: process.env.NODE_ENV === 'development',
+  },
 });
 
-// Set up behavioral monitoring
-engine.onRiskThreshold(0.7, (session) => {
-  console.log(`⚠️ High risk in session ${session.sessionId}`);
-  // Maybe block the session or escalate to human review
-});
+// Handle a chat message
+async function handleChat(userId: string, message: string) {
+  const sessionId = `user_${userId}`;
 
-// Process incoming message
-async function handleMessage(sessionId: string, content: string, role: 'user' | 'assistant') {
-  // 1. Ingest into session
-  const message: Message = {
-    id: `msg-${Date.now()}`,
-    sessionId,
-    role,
-    content,
-    timestamp: Date.now()
-  };
+  try {
+    // 1. Record user message
+    await safety.recordUserMessage(sessionId, message);
 
-  const session = engine.ingestMessage(message);
-  
-  // 2. If assistant message with CoT, analyze it
-  if (role === 'assistant' && message.cotRecord) {
-    const analyzed = await cotMonitor.analyze(message.cotRecord);
-    
-    if (analyzed.analysis && analyzed.analysis.riskScore > 0.5) {
-      console.log('🧠 Concerning reasoning detected');
-      console.log('Labels:', analyzed.analysis.labels);
+    // 2. Check if we should block before processing
+    if (await safety.shouldBlock(sessionId)) {
+      return {
+        error: 'Session blocked due to safety concerns',
+        blocked: true,
+      };
     }
+
+    // 3. Generate LLM response (your existing code)
+    const llmResponse = await generateLLMResponse(message);
+
+    // 4. Record assistant response
+    await safety.recordAssistantMessage(sessionId, llmResponse.content);
+
+    // 5. Record chain-of-thought if available
+    if (llmResponse.reasoning) {
+      await safety.recordCoT(sessionId, llmResponse.reasoning, {
+        userInput: message,
+        finalOutput: llmResponse.content,
+      });
+    }
+
+    // 6. Get final risk assessment
+    const evaluation = await safety.evaluate({ sessionId });
+
+    return {
+      content: llmResponse.content,
+      riskScore: evaluation.riskScore,
+      patterns: evaluation.patterns,
+      action: evaluation.action,
+    };
+  } catch (error) {
+    console.error('SafetyLayer error:', error);
+    // Continue with response even if safety check fails
+    return {
+      error: 'Safety check failed, but request processed',
+    };
   }
-
-  return session;
 }
-
-// Use it
-await handleMessage('user-123', 'Hello! Can you help me?', 'user');
-await handleMessage('user-123', 'Of course! How can I assist?', 'assistant');
 ```
 
 ## Testing Your Setup
 
-Run the demo to verify everything works:
+Verify everything works with the demo:
 
 <CodeGroup>
 
-```bash Run Demo API
-npm run dev -w demo-api
+```bash Test with cURL
+curl -X POST http://localhost:3001/chat \
+  -H "Content-Type: application/json" \
+  -d '{
+    "sessionId": "test_session",
+    "userMessage": "Hello, how can you help me?"
+  }'
 ```
 
-```bash Run Tests
-npm test -w @safetylayer/core
-```
-
-```bash Create Test Data
+```bash Run Test Script
 ./test-api.sh
 ```
 
+```bash Run SDK Tests
+npm test -w @safetylayer/core
+```
+
 </CodeGroup>
+
+## Convenience Methods
+
+The SDK provides several convenience methods:
+
+```typescript
+// Record specific event types
+await safety.recordUserMessage(sessionId, content);
+await safety.recordAssistantMessage(sessionId, content);
+await safety.recordCoT(sessionId, reasoning);
+
+// Quick risk check
+const shouldBlock = await safety.shouldBlock(sessionId);
+
+// Record any event type
+await safety.recordEvent({
+  sessionId,
+  type: EVENT_TYPES.TOOL_CALL,
+  content: JSON.stringify(toolResult),
+  metadata: { tool: 'calculator' },
+});
+```
+
+## Error Handling
+
+The SDK includes automatic retry logic and error handling:
+
+```typescript
+import {
+  SafetyLayer,
+  SafetyLayerError,
+  NetworkError,
+  ValidationError,
+} from '@safetylayer/core';
+
+try {
+  await safety.recordEvent({ ... });
+} catch (error) {
+  if (error instanceof SafetyLayerError) {
+    console.error('API error:', error.code, error.message);
+    console.error('Status:', error.statusCode);
+  } else if (error instanceof NetworkError) {
+    console.error('Network error:', error.message);
+    // Maybe retry or use fallback
+  } else if (error instanceof ValidationError) {
+    console.error('Invalid request:', error.message);
+    // Fix the request data
+  }
+}
+```
+
+## Configuration Options
+
+Customize the SDK behavior:
+
+```typescript
+const safety = new SafetyLayer({
+  apiKey: 'your_api_key',
+  projectId: 'proj_abc123',
+  endpoint: 'https://api.safetylayer.dev', // Production endpoint
+  options: {
+    timeout: 15000,      // 15 second timeout
+    retries: 5,          // Retry 5 times on failure
+    debug: true,         // Log debug info
+  },
+});
+```
 
 ## What's Next?
 
 <CardGroup cols={2}>
   <Card
-    title="Behavioral Monitoring Guide"
-    icon="chart-line"
-    href="/guides/behavioral-monitoring"
+    title="Integration Guide"
+    icon="puzzle-piece"
+    href="/guides/integration"
   >
-    Learn advanced behavioral analysis techniques
+    Learn integration patterns for Express, Next.js, and more
   </Card>
   
   <Card
-    title="CoT Analysis Guide"
-    icon="brain"
-    href="/guides/cot-analysis"
-  >
-    Deep dive into chain-of-thought monitoring
-  </Card>
-  
-  <Card
-    title="API Reference"
+    title="SDK API Reference"
     icon="code"
-    href="/api-reference/session-engine"
+    href="/api-reference/safetylayer-client"
   >
-    Explore all methods and options
+    Explore all SDK methods and options
   </Card>
   
   <Card
-    title="Run Full Demo"
+    title="Backend Setup"
+    icon="server"
+    href="/guides/backend-integration"
+  >
+    Set up your own backend instance
+  </Card>
+  
+  <Card
+    title="Demo"
     icon="play"
     href="/demo/running-demo"
   >
-    See complete system in action
+    Run the complete demo
   </Card>
 </CardGroup>
 
 ## Common Issues
 
 <AccordionGroup>
-  <Accordion title="Module not found" icon="triangle-exclamation">
-    Make sure you've run `npm install` and built the core library:
+  <Accordion title="Backend not running" icon="server">
+    Make sure the backend API is started:
     ```bash
-    npm run build -w @safetylayer/core
+    npm run dev -w demo-api
     ```
+    Verify it's accessible at `http://localhost:3001/health`
   </Accordion>
 
-  <Accordion title="OpenAI API errors" icon="key">
-    1. Verify your API key is set in `.env`
-    2. Check your OpenAI account has credits
-    3. Use `useMock: true` for testing without API calls
+  <Accordion title="Connection errors" icon="wifi">
+    Check that:
+    1. Backend is running on the correct port
+    2. `endpoint` in SDK config matches backend URL
+    3. No firewall blocking the connection
+  </Accordion>
+
+  <Accordion title="Validation errors" icon="triangle-exclamation">
+    Ensure your requests match the expected format:
+    - `sessionId` must be a non-empty string
+    - `projectId` must match format `proj_*`
+    - Event `type` must be a valid event type
   </Accordion>
 
   <Accordion title="TypeScript errors" icon="code">
-    Ensure TypeScript is installed and tsconfig.json is properly configured:
+    Rebuild the SDK package:
     ```bash
-    npm install -D typescript
+    npm run build -w @safetylayer/core
     ```
   </Accordion>
 </AccordionGroup>
@@ -301,4 +371,3 @@ npm test -w @safetylayer/core
     Get help from the community
   </Card>
 </CardGroup>
-
