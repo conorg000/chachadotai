@@ -60,9 +60,6 @@ npm run build -w @safetylayer/core
 cp .env.example .env
 # Edit .env and add your OPENAI_KEY
 
-# Start demo API
-npm run dev -w demo-api
-
 # Start dashboard (optional)
 npm run dev -w dashboard
 
