@@ -35,7 +35,7 @@ export class OpenAIThreatModel implements ThreatModel {
       apiKey: config.apiKey,
       timeout: config.timeout ?? 30000,
     });
-    this.model = config.model ?? 'gpt-4';
+    this.model = config.model ?? 'gpt-5-nano';
     this.timeout = config.timeout ?? 30000;
     this.maxEventsToAnalyze = config.maxEventsToAnalyze ?? 50;
   }

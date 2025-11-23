@@ -23,7 +23,7 @@ export const config = {
     provider: (process.env.THREAT_MODEL_PROVIDER || 'openai') as 'openai' | 'mock',
     openai: {
       apiKey: process.env.OPENAI_API_KEY || '',
-      model: process.env.OPENAI_MODEL || 'gpt-4',
+      model: process.env.OPENAI_MODEL || 'gpt-5-nano',
       timeout: parseInt(process.env.OPENAI_TIMEOUT || '30000', 10),
       maxEventsToAnalyze: parseInt(process.env.MAX_EVENTS_TO_ANALYZE || '50', 10),
     },

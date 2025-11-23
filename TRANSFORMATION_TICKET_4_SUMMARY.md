@@ -37,7 +37,7 @@ interface ThreatModel {
 OpenAI GPT-based implementation of the ThreatModel interface.
 
 **Features**:
-- Uses GPT-4 (configurable) for threat analysis
+- Uses gpt-5-nano (configurable) for threat analysis
 - Analyzes up to 50 recent events (configurable)
 - Detects 8 threat patterns:
   1. Jailbreak Attempts
@@ -53,7 +53,7 @@ OpenAI GPT-based implementation of the ThreatModel interface.
 
 **Configuration** (via environment variables):
 - `OPENAI_API_KEY`: OpenAI API key
-- `OPENAI_MODEL`: Model name (default: `gpt-4`)
+- `OPENAI_MODEL`: Model name (default: `gpt-5-nano`)
 - `OPENAI_TIMEOUT`: Request timeout in ms (default: `30000`)
 - `MAX_EVENTS_TO_ANALYZE`: Number of recent events (default: `50`)
 

@@ -298,7 +298,7 @@ No new environment variables required (uses existing OpenAI config from Ticket 4
 ```bash
 THREAT_MODEL_PROVIDER=openai
 OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4
+OPENAI_MODEL=gpt-5-nano
 ```
 
 ## Success Criteria ✅
