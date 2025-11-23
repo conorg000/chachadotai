@@ -15,12 +15,14 @@ docker compose up
 ```
 
 This will:
+
 - Start PostgreSQL on `localhost:5432`
 - Run database migrations automatically
 - Seed the dev project
 - Start the backend with hot reload on `http://localhost:3001`
 
 To stop:
+
 ```bash
 docker compose down
 
@@ -33,17 +35,20 @@ docker compose down -v
 If you prefer to run without Docker:
 
 1. Install dependencies:
+
 ```bash
 npm install
 ```
 
 2. Set up environment variables:
+
 ```bash
 cp .env.example .env
 # Edit .env with your database credentials
 ```
 
 3. Set up PostgreSQL database:
+
 ```bash
 # Create database
 createdb safetylayer
@@ -56,6 +61,7 @@ npm run seed
 ```
 
 4. Start development server:
+
 ```bash
 npm run dev
 ```
@@ -67,17 +73,21 @@ The server will start on `http://localhost:3001`.
 All endpoints (except `/health`) require authentication via `X-API-Key` header.
 
 ### Health Check
+
 - `GET /health` - Server health check (no auth required)
 
 ### Events
+
 - `POST /v1/events` - Record a new event
 - `GET /v1/events?sessionId=<id>` - List events for a session
 
 ### Sessions
+
 - `GET /v1/sessions?projectId=<id>` - List sessions for a project
 - `GET /v1/sessions/:id` - Get session details with risk timeline
 
 ### Evaluation
+
 - `POST /v1/evaluate` - Evaluate session for risk (stub for now)
 
 ## Development Mode
@@ -93,6 +103,7 @@ curl -H "X-API-Key: dev-key-12345" \
 ## Database Schema
 
 The schema includes:
+
 - `projects` - Project configuration and API keys
 - `sessions` - User sessions with risk scores
 - `events` - Session events (messages, tool calls, CoT, etc.)

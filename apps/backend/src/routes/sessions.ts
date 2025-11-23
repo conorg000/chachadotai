@@ -1,14 +1,13 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { query } from '../db/connection.js';
 import type {
-  ListSessionsQuery,
-  ListSessionsResponse,
   GetSessionResponse,
-  SessionSummary,
-  SessionDetail,
+  ListSessionsResponse,
   RiskSnapshot,
-} from '@safetylayer/contracts';
+  SessionDetail,
+  SessionSummary,
+} from "@safetylayer/contracts";
+import type { Request, Response } from "express";
+import { Router } from "express";
+import { query } from "../db/connection.js";
 
 const router = Router();
 
@@ -17,80 +16,120 @@ interface AuthenticatedRequest extends Request {
 }
 
 // GET /v1/sessions - List sessions for a project
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const projectId = req.projectId!;
-    const { limit = '50', offset = '0' } = req.query as ListSessionsQuery;
+    const limitParam = (req.query.limit as string) || "50";
+    const offsetParam = (req.query.offset as string) || "0";
+    const limit = parseInt(limitParam, 10);
+    const offset = parseInt(offsetParam, 10);
 
-    const result = await query<SessionSummary>(
+    interface SessionRow {
+      id: string;
+      projectId: string;
+      createdAt: Date | string;
+      lastActivityAt: Date | string;
+      currentRiskScore: number;
+      currentPatterns: any;
+      eventCount: string;
+    }
+
+    const result = await query<SessionRow>(
       `SELECT
-        id,
-        project_id as "projectId",
-        created_at as "createdAt",
-        last_activity_at as "lastActivityAt",
-        current_risk_score as "riskScore",
-        current_patterns as patterns
-       FROM sessions
-       WHERE project_id = $1
-       ORDER BY last_activity_at DESC
+        s.id,
+        s.project_id as "projectId",
+        s.created_at as "createdAt",
+        s.last_activity_at as "lastActivityAt",
+        s.current_risk_score as "currentRiskScore",
+        s.current_patterns as "currentPatterns",
+        COUNT(e.id)::text as "eventCount"
+       FROM sessions s
+       LEFT JOIN events e ON s.id = e.session_id
+       WHERE s.project_id = $1
+       GROUP BY s.id
+       ORDER BY s.last_activity_at DESC
        LIMIT $2 OFFSET $3`,
-      [projectId, parseInt(limit, 10), parseInt(offset, 10)]
+      [projectId, limit, offset]
     );
+
+    // Get total count
+    const countResult = await query<{ count: string }>(
+      "SELECT COUNT(*)::text as count FROM sessions WHERE project_id = $1",
+      [projectId]
+    );
+    const total = parseInt(countResult.rows[0]?.count || "0", 10);
 
     const sessions: SessionSummary[] = result.rows.map((row) => ({
       id: row.id,
       projectId: row.projectId,
-      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      currentRiskScore: parseFloat(row.currentRiskScore as any) || 0,
+      currentPatterns: (row.currentPatterns as any) || [],
       lastActivityAt:
         row.lastActivityAt instanceof Date
-          ? row.lastActivityAt.toISOString()
-          : row.lastActivityAt,
-      riskScore: parseFloat(row.riskScore as any) || 0,
-      patterns: (row.patterns as any) || [],
+          ? row.lastActivityAt.getTime()
+          : new Date(row.lastActivityAt).getTime(),
+      eventCount: parseInt(row.eventCount, 10),
     }));
 
     const response: ListSessionsResponse = {
       sessions,
+      total,
+      offset,
+      limit,
     };
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Error listing sessions:', error);
+    console.error("Error listing sessions:", error);
     res.status(500).json({
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to list sessions',
+        code: "INTERNAL_ERROR",
+        message: "Failed to list sessions",
       },
     });
   }
 });
 
 // GET /v1/sessions/:id - Get session details
-router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
+router.get("/:id", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const projectId = req.projectId!;
     const { id } = req.params;
 
-    // Get session
-    const sessionResult = await query<SessionDetail>(
+    interface SessionRow {
+      id: string;
+      projectId: string;
+      createdAt: Date | string;
+      lastActivityAt: Date | string;
+      currentRiskScore: number;
+      currentPatterns: any;
+      metadata: any;
+      eventCount: string;
+    }
+
+    // Get session with event count
+    const sessionResult = await query<SessionRow>(
       `SELECT
-        id,
-        project_id as "projectId",
-        created_at as "createdAt",
-        last_activity_at as "lastActivityAt",
-        current_risk_score as "riskScore",
-        current_patterns as patterns,
-        metadata
-       FROM sessions
-       WHERE id = $1 AND project_id = $2`,
+        s.id,
+        s.project_id as "projectId",
+        s.created_at as "createdAt",
+        s.last_activity_at as "lastActivityAt",
+        s.current_risk_score as "currentRiskScore",
+        s.current_patterns as "currentPatterns",
+        s.metadata,
+        COUNT(e.id)::text as "eventCount"
+       FROM sessions s
+       LEFT JOIN events e ON s.id = e.session_id
+       WHERE s.id = $1 AND s.project_id = $2
+       GROUP BY s.id`,
       [id, projectId]
     );
 
     if (sessionResult.rows.length === 0) {
       res.status(404).json({
         error: {
-          code: 'NOT_FOUND',
-          message: 'Session not found',
+          code: "NOT_FOUND",
+          message: "Session not found",
         },
       });
       return;
@@ -98,8 +137,19 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     const sessionRow = sessionResult.rows[0];
 
+    interface RiskSnapshotRow {
+      id: string;
+      sessionId: string;
+      projectId: string;
+      eventId: string | null;
+      riskScore: number;
+      patterns: any;
+      explanation: string | null;
+      createdAt: Date | string;
+    }
+
     // Get risk snapshots for this session
-    const snapshotsResult = await query<RiskSnapshot>(
+    const snapshotsResult = await query<RiskSnapshotRow>(
       `SELECT
         id,
         session_id as "sessionId",
@@ -119,11 +169,14 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       id: row.id,
       sessionId: row.sessionId,
       projectId: row.projectId,
-      eventId: row.eventId || undefined,
+      eventId: row.eventId || "",
       riskScore: parseFloat(row.riskScore as any),
       patterns: (row.patterns as any) || [],
       explanation: row.explanation || undefined,
-      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt.getTime()
+          : new Date(row.createdAt).getTime(),
     }));
 
     const session: SessionDetail = {
@@ -131,16 +184,17 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
       projectId: sessionRow.projectId,
       createdAt:
         sessionRow.createdAt instanceof Date
-          ? sessionRow.createdAt.toISOString()
-          : sessionRow.createdAt,
+          ? sessionRow.createdAt.getTime()
+          : new Date(sessionRow.createdAt).getTime(),
       lastActivityAt:
         sessionRow.lastActivityAt instanceof Date
-          ? sessionRow.lastActivityAt.toISOString()
-          : sessionRow.lastActivityAt,
-      riskScore: parseFloat(sessionRow.riskScore as any) || 0,
-      patterns: (sessionRow.patterns as any) || [],
+          ? sessionRow.lastActivityAt.getTime()
+          : new Date(sessionRow.lastActivityAt).getTime(),
+      currentRiskScore: parseFloat(sessionRow.currentRiskScore as any) || 0,
+      currentPatterns: (sessionRow.currentPatterns as any) || [],
       metadata: (sessionRow.metadata as any) || {},
       riskSnapshots,
+      eventCount: parseInt(sessionRow.eventCount, 10),
     };
 
     const response: GetSessionResponse = {
@@ -149,11 +203,11 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Error getting session:', error);
+    console.error("Error getting session:", error);
     res.status(500).json({
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to get session',
+        code: "INTERNAL_ERROR",
+        message: "Failed to get session",
       },
     });
   }

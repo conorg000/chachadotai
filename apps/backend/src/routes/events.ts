@@ -1,17 +1,18 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
-import { query } from '../db/connection.js';
 import {
+  formatValidationError,
   RecordEventRequestSchema,
   validate,
-  formatValidationError,
+  type EventType,
+  type EventWithAnalysis,
+  type ListEventsResponse,
   type RecordEventRequest,
   type RecordEventResponse,
-  type ListEventsQuery,
-  type ListEventsResponse,
-  type EventWithAnalysis,
-} from '@safetylayer/contracts';
-import { randomUUID } from 'crypto';
+  type Role,
+} from "@safetylayer/contracts";
+import { randomUUID } from "crypto";
+import type { Request, Response } from "express";
+import { Router } from "express";
+import { query } from "../db/connection.js";
 
 const router = Router();
 
@@ -20,7 +21,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 // POST /v1/events - Record a new event
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const projectId = req.projectId!;
 
@@ -29,7 +30,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     if (!validationResult.success) {
       res.status(400).json({
         error: {
-          code: 'VALIDATION_ERROR',
+          code: "VALIDATION_ERROR",
           message: formatValidationError(validationResult.error),
         },
       });
@@ -72,27 +73,27 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Error recording event:', error);
+    console.error("Error recording event:", error);
     res.status(500).json({
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to record event',
+        code: "INTERNAL_ERROR",
+        message: "Failed to record event",
       },
     });
   }
 });
 
 // GET /v1/events - List events for a session
-router.get('/', async (req: AuthenticatedRequest, res: Response) => {
+router.get("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const projectId = req.projectId!;
-    const { sessionId } = req.query as ListEventsQuery;
+    const sessionId = req.query.sessionId as string | undefined;
 
     if (!sessionId) {
       res.status(400).json({
         error: {
-          code: 'VALIDATION_ERROR',
-          message: 'sessionId query parameter is required',
+          code: "VALIDATION_ERROR",
+          message: "sessionId query parameter is required",
         },
       });
       return;
@@ -100,22 +101,33 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
 
     // Verify session belongs to project
     const sessionCheck = await query(
-      'SELECT id FROM sessions WHERE id = $1 AND project_id = $2',
+      "SELECT id FROM sessions WHERE id = $1 AND project_id = $2",
       [sessionId, projectId]
     );
 
     if (sessionCheck.rows.length === 0) {
       res.status(404).json({
         error: {
-          code: 'NOT_FOUND',
-          message: 'Session not found',
+          code: "NOT_FOUND",
+          message: "Session not found",
         },
       });
       return;
     }
 
     // Get events
-    const result = await query<EventWithAnalysis>(
+    interface EventRow {
+      id: string;
+      sessionId: string;
+      projectId: string;
+      type: EventType;
+      role?: Role;
+      content?: string;
+      metadata: any;
+      createdAt: Date | string;
+    }
+
+    const result = await query<EventRow>(
       `SELECT
         id,
         session_id as "sessionId",
@@ -132,22 +144,32 @@ router.get('/', async (req: AuthenticatedRequest, res: Response) => {
     );
 
     const events: EventWithAnalysis[] = result.rows.map((row) => ({
-      ...row,
+      id: row.id,
+      sessionId: row.sessionId,
+      projectId: row.projectId,
+      type: row.type as EventType,
+      role: row.role as Role | undefined,
+      content: row.content,
       metadata: row.metadata as any,
-      createdAt: row.createdAt instanceof Date ? row.createdAt.toISOString() : row.createdAt,
+      createdAt:
+        row.createdAt instanceof Date
+          ? row.createdAt.getTime()
+          : new Date(row.createdAt).getTime(),
     }));
 
     const response: ListEventsResponse = {
       events,
+      total: events.length,
+      sessionId,
     };
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Error listing events:', error);
+    console.error("Error listing events:", error);
     res.status(500).json({
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to list events',
+        code: "INTERNAL_ERROR",
+        message: "Failed to list events",
       },
     });
   }

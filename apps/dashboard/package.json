@@ -8,6 +8,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@safetylayer/contracts": "*",
     "@safetylayer/core": "*",
     "vue": "^3.4.0",
     "vue-router": "^4.2.5",

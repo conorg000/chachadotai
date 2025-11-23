@@ -3,14 +3,14 @@
  * Used by both SDK (client-side) and backend (server-side) for validation
  */
 
-import { z } from 'zod';
-import { EVENT_TYPES } from '../constants/event-types.js';
+import { z } from "zod";
+import { EVENT_TYPES } from "../constants/event-types.js";
 
 // ============================================================================
 // Base schemas
 // ============================================================================
 
-export const RoleSchema = z.enum(['user', 'assistant']);
+export const RoleSchema = z.enum(["user", "assistant"]);
 
 export const EventTypeSchema = z.enum([
   EVENT_TYPES.MESSAGE_USER,
@@ -20,50 +20,61 @@ export const EventTypeSchema = z.enum([
   EVENT_TYPES.POLICY_DECISION,
 ]);
 
-export const PolicyActionSchema = z.enum(['allow', 'block', 'flag', 'notify']);
+export const PolicyActionSchema = z.enum(["allow", "block", "flag", "notify"]);
 
 // ID patterns
-const projectIdPattern = /^proj_[a-zA-Z0-9]+$/;
+// No pattern restriction for projectId
+const projectIdPattern = /.*/;
 const sessionIdPattern = /^[a-zA-Z0-9_-]+$/;
 
-export const ProjectIdSchema = z.string().regex(projectIdPattern, 'Invalid project ID format');
-export const SessionIdSchema = z.string().regex(sessionIdPattern, 'Invalid session ID format').min(1).max(255);
+export const ProjectIdSchema = z
+  .string()
+  .regex(projectIdPattern, "Invalid project ID format");
+export const SessionIdSchema = z
+  .string()
+  .regex(sessionIdPattern, "Invalid session ID format")
+  .min(1)
+  .max(255);
 
 // ============================================================================
 // Public API Schemas (SDK → Backend)
 // ============================================================================
 
-export const RecordEventRequestSchema = z.object({
-  projectId: ProjectIdSchema,
-  sessionId: SessionIdSchema,
-  type: EventTypeSchema,
-  role: RoleSchema.optional(),
-  content: z.string().max(50000).optional(),
-  metadata: z.record(z.any()).optional(),
-}).refine(
-  (data) => {
-    // Message events must have content
-    if (data.type.startsWith('message.') && !data.content) {
-      return false;
+export const RecordEventRequestSchema = z
+  .object({
+    projectId: ProjectIdSchema,
+    sessionId: SessionIdSchema,
+    type: EventTypeSchema,
+    role: RoleSchema.optional(),
+    content: z.string().max(50000).optional(),
+    metadata: z.record(z.any()).optional(),
+  })
+  .refine(
+    (data) => {
+      // Message events must have content
+      if (data.type.startsWith("message.") && !data.content) {
+        return false;
+      }
+      // Message events must have role
+      if (data.type.startsWith("message.") && !data.role) {
+        return false;
+      }
+      return true;
+    },
+    {
+      message: "Message events must have both content and role",
     }
-    // Message events must have role
-    if (data.type.startsWith('message.') && !data.role) {
-      return false;
-    }
-    return true;
-  },
-  {
-    message: 'Message events must have both content and role',
-  }
-);
+  );
 
 export const EvaluateRequestSchema = z.object({
   projectId: ProjectIdSchema,
   sessionId: SessionIdSchema,
-  latestMessage: z.object({
-    role: RoleSchema,
-    content: z.string().max(50000),
-  }).optional(),
+  latestMessage: z
+    .object({
+      role: RoleSchema,
+      content: z.string().max(50000),
+    })
+    .optional(),
   forceAnalysis: z.boolean().optional(),
 });
 
@@ -77,15 +88,21 @@ export const ListSessionsQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).optional(),
   minRiskScore: z.coerce.number().min(0).max(1).optional(),
   maxRiskScore: z.coerce.number().min(0).max(1).optional(),
-  patterns: z.string().transform(s => s.split(',')).optional(),
-  sortBy: z.enum(['riskScore', 'lastActivityAt', 'createdAt']).optional(),
-  sortOrder: z.enum(['asc', 'desc']).optional(),
+  patterns: z
+    .string()
+    .transform((s) => s.split(","))
+    .optional(),
+  sortBy: z.enum(["riskScore", "lastActivityAt", "createdAt"]).optional(),
+  sortOrder: z.enum(["asc", "desc"]).optional(),
 });
 
 export const ListEventsQuerySchema = z.object({
   sessionId: SessionIdSchema,
   projectId: ProjectIdSchema,
-  types: z.string().transform(s => s.split(',')).optional(),
+  types: z
+    .string()
+    .transform((s) => s.split(","))
+    .optional(),
   limit: z.coerce.number().int().min(1).max(1000).optional(),
   offset: z.coerce.number().int().min(0).optional(),
   after: z.coerce.number().int().optional(),
@@ -103,11 +120,13 @@ export const PolicyConditionsSchema = z.object({
   patternsAll: z.array(z.string()).optional(),
   cotLabelsAny: z.array(z.string()).optional(),
   cotLabelsAll: z.array(z.string()).optional(),
-  eventCount: z.object({
-    min: z.number().int().optional(),
-    max: z.number().int().optional(),
-    timeWindowMs: z.number().int().optional(),
-  }).optional(),
+  eventCount: z
+    .object({
+      min: z.number().int().optional(),
+      max: z.number().int().optional(),
+      timeWindowMs: z.number().int().optional(),
+    })
+    .optional(),
   customCondition: z.any().optional(),
 });
 
@@ -122,10 +141,12 @@ export const PolicyActionsSchema = z.object({
 
 export const CreateProjectRequestSchema = z.object({
   name: z.string().min(1).max(255),
-  settings: z.object({
-    maxEventsPerSession: z.number().int().min(10).max(10000).optional(),
-    defaultRiskThreshold: z.number().min(0).max(1).optional(),
-  }).optional(),
+  settings: z
+    .object({
+      maxEventsPerSession: z.number().int().min(10).max(10000).optional(),
+      defaultRiskThreshold: z.number().min(0).max(1).optional(),
+    })
+    .optional(),
 });
 
 export const CreatePolicyRequestSchema = z.object({
@@ -137,23 +158,27 @@ export const CreatePolicyRequestSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-export const UpdatePolicyRequestSchema = z.object({
-  name: z.string().min(1).max(255).optional(),
-  description: z.string().max(1000).optional(),
-  conditions: PolicyConditionsSchema.optional(),
-  actions: PolicyActionsSchema.optional(),
-  enabled: z.boolean().optional(),
-}).refine(
-  (data) => Object.keys(data).length > 0,
-  { message: 'At least one field must be provided for update' }
-);
+export const UpdatePolicyRequestSchema = z
+  .object({
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().max(1000).optional(),
+    conditions: PolicyConditionsSchema.optional(),
+    actions: PolicyActionsSchema.optional(),
+    enabled: z.boolean().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: "At least one field must be provided for update",
+  });
 
 // ============================================================================
 // Helper functions
 // ============================================================================
 
 /** Type-safe validation helper */
-export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: true; data: T } | { success: false; error: z.ZodError } {
+export function validate<T>(
+  schema: z.ZodSchema<T>,
+  data: unknown
+): { success: true; data: T } | { success: false; error: z.ZodError } {
   const result = schema.safeParse(data);
   if (result.success) {
     return { success: true, data: result.data };
@@ -163,6 +188,7 @@ export function validate<T>(schema: z.ZodSchema<T>, data: unknown): { success: t
 
 /** Get formatted error message from Zod error */
 export function formatValidationError(error: z.ZodError): string {
-  return error.errors.map(err => `${err.path.join('.')}: ${err.message}`).join('; ');
+  return error.errors
+    .map((err) => `${err.path.join(".")}: ${err.message}`)
+    .join("; ");
 }
-

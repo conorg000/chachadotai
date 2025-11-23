@@ -1,15 +1,13 @@
-import { Router } from 'express';
-import type { Request, Response } from 'express';
 import {
   EvaluateRequestSchema,
-  validate,
   formatValidationError,
+  validate,
   type EvaluateRequest,
   type EvaluateResponse,
-} from '@safetylayer/contracts';
-import { SessionAnalyzerService } from '../services/session-analyzer.js';
-import { OpenAIThreatModel } from '../services/threat-model/openai-threat-model.js';
-import { config } from '../config.js';
+} from "@safetylayer/contracts";
+import { config } from "../config.js";
+import { SessionAnalyzerService } from "../services/session-analyzer.js";
+import { OpenAIThreatModel } from "../services/threat-model/openai-threat-model.js";
 
 const router = Router();
 
@@ -22,7 +20,7 @@ interface AuthenticatedRequest extends Request {
 }
 
 // POST /v1/evaluate - Evaluate session for risk
-router.post('/', async (req: AuthenticatedRequest, res: Response) => {
+router.post("/", async (req: AuthenticatedRequest, res: Response) => {
   try {
     const projectId = req.projectId!;
 
@@ -31,7 +29,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
     if (!validationResult.success) {
       res.status(400).json({
         error: {
-          code: 'VALIDATION_ERROR',
+          code: "VALIDATION_ERROR",
           message: formatValidationError(validationResult.error),
         },
       });
@@ -50,8 +48,8 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
       const response: EvaluateResponse = {
         riskScore: 0,
         patterns: [],
-        action: 'allow',
-        reasons: ['No events in session'],
+        action: "allow",
+        reasons: ["No events in session"],
         sessionId: evaluateData.sessionId,
         timestamp: Date.now(),
       };
@@ -68,19 +66,19 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     // TODO (Ticket 9): Run PolicyEngine to determine action
     // For now, simple threshold-based action
-    let action: 'allow' | 'block' | 'flag' = 'allow';
+    let action: "allow" | "block" | "flag" = "allow";
     const reasons: string[] = [];
 
     if (analysis.riskScore >= 0.8) {
-      action = 'block';
-      reasons.push('Critical risk score detected');
+      action = "block";
+      reasons.push("Critical risk score detected");
     } else if (analysis.riskScore >= 0.6) {
-      action = 'flag';
-      reasons.push('High risk score detected');
+      action = "flag";
+      reasons.push("High risk score detected");
     }
 
     if (analysis.patterns.length > 0) {
-      reasons.push(`Patterns detected: ${analysis.patterns.join(', ')}`);
+      reasons.push(`Patterns detected: ${analysis.patterns.join(", ")}`);
     }
 
     const response: EvaluateResponse = {
@@ -94,11 +92,11 @@ router.post('/', async (req: AuthenticatedRequest, res: Response) => {
 
     res.status(200).json(response);
   } catch (error) {
-    console.error('Error evaluating session:', error);
+    console.error("Error evaluating session:", error);
     res.status(500).json({
       error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Failed to evaluate session',
+        code: "INTERNAL_ERROR",
+        message: "Failed to evaluate session",
       },
     });
   }

@@ -22,81 +22,78 @@
       <p class="hint">Start a conversation in the demo API to see sessions appear here</p>
     </div>
 
-    <table v-else class="sessions-table">
-      <thead>
-        <tr>
-          <th>Session ID</th>
-          <th>Risk Score</th>
-          <th>Patterns</th>
-          <th>Messages</th>
-          <th>Last Activity</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr
-          v-for="session in sessions"
-          :key="session.sessionId"
-          @click="viewSession(session.sessionId)"
-          class="session-row"
-        >
-          <td class="session-id">{{ session.sessionId }}</td>
-          <td>
-            <span class="risk-badge" :class="getRiskClass(session.riskScore)">
-              {{ session.riskScore.toFixed(2) }}
-            </span>
-          </td>
-          <td>
-            <div class="patterns">
-              <span
-                v-for="pattern in session.patterns"
-                :key="pattern"
-                class="pattern-tag"
+    <div v-else class="sessions-table-container">
+      <table class="sessions-table">
+        <thead>
+          <tr>
+            <th>Session ID</th>
+            <th>Risk</th>
+            <th>Patterns</th>
+            <th>Events</th>
+            <th>Last Activity</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr
+            v-for="session in sessions"
+            :key="session.id"
+            @click="viewSession(session.id)"
+            class="session-row"
+            :class="'risk-' + getRiskClass(session.currentRiskScore)"
+          >
+            <td class="session-id">{{ session.id }}</td>
+            <td class="risk-cell">
+              <div class="risk-badge" :class="getRiskClass(session.currentRiskScore)">
+                <span class="risk-value">{{ session.currentRiskScore.toFixed(2) }}</span>
+              </div>
+            </td>
+            <td class="patterns-cell">
+              <div class="patterns">
+                <span
+                  v-for="pattern in session.currentPatterns"
+                  :key="pattern"
+                  class="pattern-tag"
+                >
+                  {{ pattern }}
+                </span>
+                <span v-if="session.currentPatterns.length === 0" class="no-patterns">
+                  None
+                </span>
+              </div>
+            </td>
+            <td class="events-cell">{{ session.eventCount }}</td>
+            <td class="timestamp-cell">{{ formatTimestamp(session.lastActivityAt) }}</td>
+            <td class="actions-cell">
+              <button
+                @click.stop="viewSession(session.id)"
+                class="view-button"
               >
-                {{ pattern }}
-              </span>
-              <span v-if="session.patterns.length === 0" class="no-patterns">
-                None
-              </span>
-            </div>
-          </td>
-          <td>{{ session.messageCount }}</td>
-          <td class="timestamp">{{ formatTimestamp(session.lastMessageTimestamp) }}</td>
-          <td>
-            <button
-              @click.stop="viewSession(session.sessionId)"
-              class="view-button"
-            >
-              View
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
+                Analyze →
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue';
+import { ref, inject, onMounted, onUnmounted, watch, type Ref } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
-
-interface Session {
-  sessionId: string;
-  riskScore: number;
-  patterns: string[];
-  messageCount: number;
-  lastMessageTimestamp: number;
-}
+import type { SessionSummary } from '@safetylayer/contracts';
+import { api } from '../services/api';
 
 const router = useRouter();
-const sessions = ref<Session[]>([]);
+const projectId = inject<Ref<string>>('projectId')!;
+
+const sessions = ref<SessionSummary[]>([]);
 const loading = ref(false);
 const error = ref<string | null>(null);
 const isPolling = ref(false);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 const POLL_INTERVAL = 3000; // 3 seconds
 
 const fetchSessions = async () => {
@@ -104,11 +101,16 @@ const fetchSessions = async () => {
     loading.value = true;
     error.value = null;
 
-    const response = await axios.get(`${API_BASE_URL}/sessions`);
-    sessions.value = response.data.sessions || [];
+    const response = await api.listSessions(projectId.value, {
+      sortBy: 'lastActivityAt',
+      sortOrder: 'desc',
+      limit: 50,
+    });
+    
+    sessions.value = response.sessions;
     isPolling.value = true;
   } catch (err: any) {
-    error.value = err.response?.data?.error || err.message || 'Failed to fetch sessions';
+    error.value = err.message || 'Failed to fetch sessions';
     isPolling.value = false;
     console.error('Error fetching sessions:', err);
   } finally {
@@ -154,6 +156,14 @@ const formatTimestamp = (timestamp: number): string => {
   return date.toLocaleDateString();
 };
 
+// Watch for project changes and refetch sessions
+watch(projectId, () => {
+  sessions.value = []; // Clear sessions when project changes
+  if (isPolling.value) {
+    fetchSessions();
+  }
+});
+
 onMounted(() => {
   startPolling();
 });
@@ -165,8 +175,7 @@ onUnmounted(() => {
 
 <style scoped>
 .sessions-list {
-  padding: 2rem;
-  max-width: 1400px;
+  max-width: 1600px;
   margin: 0 auto;
 }
 
@@ -175,177 +184,373 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
 }
 
 .header h2 {
   margin: 0;
-  font-size: 1.8rem;
-  color: #333;
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.02em;
 }
 
 .status {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.75rem;
   font-size: 0.9rem;
-  color: #666;
+  color: var(--text-secondary);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .indicator {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: #ccc;
+  background: var(--text-muted);
+  box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.2);
 }
 
 .indicator.active {
-  background: #4caf50;
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  background: var(--success-emerald);
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.3), var(--glow-emerald);
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .loading,
 .error,
 .empty {
   text-align: center;
-  padding: 3rem;
-  color: #666;
+  padding: 4rem;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  box-shadow: var(--glass-shadow);
+  color: var(--text-secondary);
+}
+
+.loading {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(0, 212, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
 }
 
 .error {
-  color: #e53935;
+  border-color: var(--danger-red);
+  box-shadow: var(--glow-red), var(--glass-shadow);
+}
+
+.error p {
+  color: var(--danger-red);
+  font-weight: 600;
 }
 
 .error button {
   margin-top: 1rem;
-  padding: 0.5rem 1.5rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 4px;
+  padding: 0.75rem 2rem;
+  background: rgba(239, 68, 68, 0.2);
+  color: var(--danger-red);
+  border: 1px solid var(--danger-red);
+  border-radius: 8px;
   cursor: pointer;
+  font-weight: 600;
+  transition: all 0.3s;
 }
 
 .error button:hover {
-  background: #5568d3;
+  background: var(--danger-red);
+  color: white;
+  box-shadow: var(--glow-red);
+  transform: scale(1.05);
 }
 
 .empty .hint {
   font-size: 0.9rem;
-  color: #999;
+  color: var(--text-muted);
   margin-top: 0.5rem;
+  font-style: italic;
 }
 
+/* Table Container */
+.sessions-table-container {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--glass-shadow);
+}
+
+/* Table */
 .sessions-table {
   width: 100%;
   border-collapse: collapse;
-  background: white;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  border-radius: 8px;
-  overflow: hidden;
 }
 
 .sessions-table thead {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
+  background: rgba(0, 212, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-bottom: 2px solid var(--accent-cyan);
 }
 
 .sessions-table th {
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
   text-align: left;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--accent-cyan);
+  border-bottom: 1px solid rgba(0, 212, 255, 0.3);
 }
 
-.sessions-table tbody tr {
-  border-bottom: 1px solid #eee;
-  transition: background 0.2s;
+.sessions-table tbody {
+  background: transparent;
 }
 
+/* Session Row */
 .session-row {
   cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  position: relative;
+}
+
+.session-row::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  opacity: 0;
+  transition: all 0.3s;
+}
+
+.session-row.risk-low::before {
+  background: var(--success-emerald);
+  box-shadow: var(--glow-emerald);
+}
+
+.session-row.risk-medium::before {
+  background: var(--warning-amber);
+  box-shadow: var(--glow-amber);
+}
+
+.session-row.risk-high::before {
+  background: var(--danger-red);
+  box-shadow: var(--glow-red);
+}
+
+.session-row:hover::before {
+  opacity: 1;
 }
 
 .session-row:hover {
-  background: #f5f5f5;
+  background: rgba(255, 255, 255, 0.05);
+  transform: translateX(4px);
+}
+
+.session-row.risk-low:hover {
+  box-shadow: inset 4px 0 0 var(--success-emerald), 0 0 20px rgba(16, 185, 129, 0.1);
+}
+
+.session-row.risk-medium:hover {
+  box-shadow: inset 4px 0 0 var(--warning-amber), 0 0 20px rgba(245, 158, 11, 0.1);
+}
+
+.session-row.risk-high:hover {
+  box-shadow: inset 4px 0 0 var(--danger-red), 0 0 20px rgba(239, 68, 68, 0.1);
+  animation: pulse-glow 2s ease-in-out infinite;
 }
 
 .sessions-table td {
-  padding: 1rem;
+  padding: 1.25rem 1.5rem;
+  color: var(--text-primary);
+  vertical-align: middle;
 }
 
 .session-id {
-  font-family: monospace;
-  color: #667eea;
-  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 10px rgba(0, 212, 255, 0.3);
+}
+
+/* Cell Specific Styles */
+.risk-cell {
+  width: 100px;
 }
 
 .risk-badge {
-  display: inline-block;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-weight: 600;
-  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 1rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  min-width: 70px;
+  border: 2px solid;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s;
+}
+
+.risk-badge .risk-value {
+  line-height: 1;
 }
 
 .risk-badge.low {
-  background: #e8f5e9;
-  color: #4caf50;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--success-emerald);
+  border-color: var(--success-emerald);
+  box-shadow: inset 0 0 10px rgba(16, 185, 129, 0.2);
 }
 
 .risk-badge.medium {
-  background: #fff3e0;
-  color: #ff9800;
+  background: rgba(245, 158, 11, 0.15);
+  color: var(--warning-amber);
+  border-color: var(--warning-amber);
+  box-shadow: inset 0 0 10px rgba(245, 158, 11, 0.2);
 }
 
 .risk-badge.high {
-  background: #ffebee;
-  color: #f44336;
+  background: rgba(239, 68, 68, 0.15);
+  color: var(--danger-red);
+  border-color: var(--danger-red);
+  box-shadow: inset 0 0 10px rgba(239, 68, 68, 0.2);
 }
 
+.session-row:hover .risk-badge.low {
+  box-shadow: var(--glow-emerald), inset 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.session-row:hover .risk-badge.medium {
+  box-shadow: var(--glow-amber), inset 0 0 15px rgba(245, 158, 11, 0.3);
+}
+
+.session-row:hover .risk-badge.high {
+  box-shadow: var(--glow-red), inset 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.patterns-cell {
+  max-width: 300px;
+}
+
+.events-cell {
+  font-weight: 600;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+}
+
+.timestamp-cell {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.actions-cell {
+  width: 150px;
+}
+
+/* Patterns */
 .patterns {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .pattern-tag {
-  padding: 0.25rem 0.5rem;
-  background: #f0f0f0;
-  border-radius: 4px;
-  font-size: 0.85rem;
-  color: #555;
+  padding: 0.35rem 0.7rem;
+  background: rgba(168, 85, 247, 0.15);
+  border: 1px solid var(--accent-purple);
+  border-radius: 6px;
+  font-size: 0.75rem;
+  color: var(--accent-purple);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: inset 0 0 10px rgba(168, 85, 247, 0.2);
+  transition: all 0.3s;
+  white-space: nowrap;
+}
+
+.session-row:hover .pattern-tag {
+  background: rgba(168, 85, 247, 0.25);
+  box-shadow: var(--glow-purple), inset 0 0 15px rgba(168, 85, 247, 0.3);
 }
 
 .no-patterns {
-  color: #999;
+  color: var(--text-muted);
   font-style: italic;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
 }
 
-.timestamp {
-  color: #999;
-  font-size: 0.9rem;
-}
-
+/* View Button */
 .view-button {
-  padding: 0.4rem 1rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.2) 0%, rgba(168, 85, 247, 0.2) 100%);
+  color: var(--accent-cyan);
+  border: 1px solid var(--accent-cyan);
+  border-radius: 8px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: inset 0 0 10px rgba(0, 212, 255, 0.1);
+  white-space: nowrap;
 }
 
 .view-button:hover {
-  background: #5568d3;
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.3) 0%, rgba(168, 85, 247, 0.3) 100%);
+  border-color: var(--accent-cyan);
+  box-shadow: var(--glow-cyan), inset 0 0 20px rgba(0, 212, 255, 0.2);
+  transform: scale(1.05);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+  .sessions-table th,
+  .sessions-table td {
+    padding: 1rem;
+  }
+  
+  .pattern-tag {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .sessions-table-container {
+    overflow-x: auto;
+  }
+  
+  .sessions-table {
+    min-width: 800px;
+  }
 }
 </style>
