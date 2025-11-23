@@ -1,4 +1,4 @@
-Here’s a ticket breakdown based on the plan (excluding Phase 6), organised so that after a single foundation ticket, the two of you can work in parallel.
+Here’s a ticket breakdown based on the plan, organised so that after a single foundation ticket, the two of you can work in parallel.
 
 ---
 
