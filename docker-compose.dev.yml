@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: safetylayer-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: safetylayer
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data_dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Backend API (development with hot reload)
+  backend-dev:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile.dev
+    container_name: safetylayer-backend-dev
+    restart: unless-stopped
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: safetylayer
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      DEV_API_KEY: dev-key-12345
+    ports:
+      - "3001:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Mount entire workspace for hot reload
+      - .:/app
+      - /app/node_modules
+      - /app/apps/backend/node_modules
+      - /app/packages/contracts/node_modules
+      - /app/packages/contracts/dist
+    working_dir: /app/apps/backend
+    command: sh -c "cd /app/packages/contracts && npm run build && cd /app/apps/backend && npm run migrate && npm run seed && npm run dev"
+
+volumes:
+  postgres_data_dev:

@@ -21,13 +21,42 @@ The comprehensive documentation includes:
 
 ## Architecture
 
-This monorepo contains three main components:
+This monorepo contains the following components:
 
-- **@safetylayer/core** (`packages/core/`) - Core library providing session-aware behavioral analysis and Chain-of-Thought monitoring
-- **Demo API** (`apps/demo-api/`) - Express backend that integrates the core library with LLM providers
-- **Dashboard** (`apps/dashboard/`) - Vue.js frontend for visualizing risk metrics and CoT analysis
+### Current Architecture (Transformation in Progress)
+
+- **@safetylayer/contracts** (`packages/contracts/`) - Shared TypeScript types and API contracts
+- **Backend API** (`apps/backend/`) - **NEW** Control-plane backend with PostgreSQL
+- **@safetylayer/core** (`packages/core/`) - Legacy core library (being migrated)
+- **Demo API** (`apps/demo-api/`) - Legacy demo backend (being replaced)
+- **Dashboard** (`apps/dashboard/`) - Vue.js frontend for visualizing risk metrics
+
+### Transformation Status
+
+We are currently migrating from a monolithic SDK to a client-server architecture:
+- ✅ **Ticket 1**: Shared contracts defined
+- ✅ **Ticket 2**: Backend skeleton + RDS schema implemented
+- ⏳ **Next**: SDK refactor, analysis services, dashboard integration
+
+See [chacha_transformation_tickets.md](chacha_transformation_tickets.md) for details.
 
 ## Quick Start
+
+### Option 1: Docker Compose (Recommended)
+
+The easiest way to run the new backend with PostgreSQL:
+
+```bash
+# Start PostgreSQL + Backend API
+docker-compose -f docker-compose.dev.yml up
+
+# The backend will be available at http://localhost:3001
+# PostgreSQL will be available at localhost:5432
+```
+
+See [DOCKER.md](DOCKER.md) for detailed Docker setup instructions.
+
+### Option 2: Manual Setup
 
 ```bash
 # Install dependencies

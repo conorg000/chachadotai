@@ -1,0 +1,29 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies for development
+RUN apk add --no-cache git
+
+# Copy package files for caching
+COPY package*.json ./
+COPY apps/backend/package*.json ./apps/backend/
+COPY packages/contracts/package*.json ./packages/contracts/
+
+# Install all dependencies (including dev dependencies)
+RUN npm install
+
+# Copy workspace files
+COPY . .
+
+# Build contracts package
+WORKDIR /app/packages/contracts
+RUN npm run build
+
+WORKDIR /app/apps/backend
+
+# Expose port
+EXPOSE 3001
+
+# Command will be overridden by docker-compose
+CMD ["npm", "run", "dev"]
